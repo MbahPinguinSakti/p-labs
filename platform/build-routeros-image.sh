@@ -12,7 +12,8 @@
 #
 # Lisensi: CHR tanpa lisensi berbayar berjalan dalam mode free (upload dibatasi
 # 1 Mbit/s per interface), lebih dari cukup untuk lab troubleshooting.
-# Butuh: docker, git, curl, unzip, make, dan /dev/kvm (virtualisasi aktif di BIOS).
+# Butuh: docker (+ plugin buildx), git, curl, unzip, make, dan /dev/kvm
+# (virtualisasi aktif di BIOS; di dalam VM: nested virtualization).
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -28,9 +29,24 @@ fi
 for cmd in docker git curl unzip make; do
   command -v "$cmd" >/dev/null || { echo "Butuh '$cmd' untuk membangun image." >&2; exit 1; }
 done
-if [[ ! -r /dev/kvm || ! -w /dev/kvm ]]; then
-  echo "Peringatan: /dev/kvm tidak bisa diakses. RouterOS tetap jalan tanpa KVM, tapi sangat lambat." >&2
-  echo "Aktifkan virtualisasi (VT-x/AMD-V) di BIOS, atau tambahkan user ke grup kvm." >&2
+# Makefile vrnetlab memanggil `docker buildx build --platform ...`. Tanpa plugin
+# buildx, docker membaca "buildx" sebagai perintah tak dikenal: "unknown flag: --platform".
+if ! docker buildx version >/dev/null 2>&1; then
+  echo "Plugin docker buildx belum terpasang. Pasang dulu:" >&2
+  echo "  Ubuntu/Debian (docker.io): sudo apt install docker-buildx" >&2
+  echo "  Docker CE (repo docker.com): sudo apt install docker-buildx-plugin" >&2
+  echo "  Arch: sudo pacman -S docker-buildx    Fedora: sudo dnf install docker-buildx-plugin" >&2
+  exit 1
+fi
+if [[ ! -e /dev/kvm ]]; then
+  echo "Peringatan: /dev/kvm tidak ada. RouterOS tetap jalan tanpa KVM, tapi sangat lambat (bisa > 5 menit per boot)." >&2
+  if systemd-detect-virt -q 2>/dev/null; then
+    echo "Mesin ini VM ($(systemd-detect-virt)): aktifkan nested virtualization di hypervisor-nya (lihat docs/instalasi.md)." >&2
+  else
+    echo "Aktifkan virtualisasi (VT-x/AMD-V) di BIOS." >&2
+  fi
+elif [[ ! -r /dev/kvm || ! -w /dev/kvm ]]; then
+  echo "Peringatan: /dev/kvm ada tapi tidak bisa diakses user ini: sudo usermod -aG kvm $USER, lalu login ulang." >&2
 fi
 
 echo "==> vrnetlab"
@@ -53,5 +69,10 @@ find "$DIR" -maxdepth 1 -name 'chr-*.vmdk' ! -name "chr-$VERSION.vmdk" -delete
 
 echo "==> build image (beberapa menit)"
 make -C "$DIR" docker-image REGISTRY=vrnetlab/
-docker image inspect "$IMAGE" >/dev/null
+# vrnetlab versi baru memberi akhiran arsitektur (7.20.4-amd64); lab memakai tag tanpa akhiran.
+if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
+  BUILT=$(docker image ls --format '{{.Repository}}:{{.Tag}}' "${IMAGE%%:*}" | grep -m1 "^$IMAGE-") \
+    || { echo "Build selesai tapi image $IMAGE tidak ditemukan (cek output make di atas)." >&2; exit 1; }
+  docker tag "$BUILT" "$IMAGE"
+fi
 echo "Selesai: $IMAGE"

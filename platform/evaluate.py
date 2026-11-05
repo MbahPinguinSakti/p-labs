@@ -141,7 +141,11 @@ class Session:
         if not self.lab.session:
             raise EvaluatorError(f"Tidak ada session_id di {self.state_dir}")
         self.problem = self.lab.problem
-        self.ground_truth = json.loads((self.state_dir / "ground_truth.json").read_text())
+        truth = self.state_dir / "ground_truth.json"
+        if not truth.exists():
+            raise EvaluatorError("Sesi ini tidak punya ground truth: deploy atau inject.sh gagal sebelum "
+                                 "sesi siap. Mulai sesi baru (Deploy ulang lab, atau ./reset.sh).")
+        self.ground_truth = json.loads(truth.read_text())
 
         if self.live and live_verify:
             self.verify_result = run_verify(self.problem_dir, self.state_dir)

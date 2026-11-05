@@ -484,13 +484,18 @@ def checkpoint_view(lab, hits, reveal):
     return rows
 
 
+def armed(lab):
+    """Sesi siap dimainkan: ada session_id dan ground truth dari inject.sh."""
+    return bool(lab.session) and (lab.state / "ground_truth.json").exists()
+
+
 def live_state(lab_id):
     directory = lab_dir(lab_id)
     lab = Lab(directory)
     problem = lab.problem
     nodes = list(yaml.safe_load((directory / problem["lab_topology"]).read_text())["topology"]["nodes"])
     deploy = DEPLOYS.get(lab_id)
-    if not lab.session or (deploy and deploy["status"] == "running"):
+    if not armed(lab) or (deploy and deploy["status"] == "running"):
         # Selama deploy, session_id baru sudah ada tapi lab belum siap dimainkan.
         return {"lab": lab_id, "session": None, "nodes": nodes, "running": running_nodes(lab, nodes),
                 "deploy": deploy}
@@ -607,7 +612,7 @@ def start(lab_id: str):
     lab = Lab(directory)
     if DEPLOYS.busy():
         raise HTTPException(409, "Lab sedang di-deploy.")
-    if lab.session and not evaluated(lab):
+    if armed(lab) and not evaluated(lab):
         return {"session": lab.session, "new": False}
     try:
         session = sessions.rearm(directory)
@@ -647,7 +652,7 @@ class EvaluateRequest(BaseModel):
 def evaluate_session(lab_id: str, body: EvaluateRequest):
     directory = lab_dir(lab_id)
     lab = Lab(directory)
-    if not lab.session:
+    if not armed(lab):
         raise HTTPException(409, "Tidak ada sesi aktif.")
     return JOBS.start(lab_id, directory, lab.session, body.use_llm, body.provider, body.model)
 

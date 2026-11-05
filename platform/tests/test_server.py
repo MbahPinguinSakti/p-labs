@@ -116,6 +116,26 @@ class TestCatalog(unittest.TestCase):
         self.assertEqual(sum(1 for e in board if e["you"]), 1)
 
 
+class TestUnarmedSession(unittest.TestCase):
+    """session_id tanpa ground_truth.json = sisa deploy/inject yang gagal, bukan sesi aktif."""
+
+    def setUp(self):
+        self.truth = TMP / "net-001" / ".state" / "ground_truth.json"
+        self.aside = self.truth.with_suffix(".bak")
+        self.truth.rename(self.aside)
+
+    def tearDown(self):
+        self.aside.rename(self.truth)
+
+    def test_not_shown_as_active(self):
+        self.assertIsNone(server.live_state("net-001")["session"])
+
+    def test_evaluate_refused(self):
+        with self.assertRaises(server.HTTPException) as ctx:
+            server.evaluate_session("net-001", server.EvaluateRequest(use_llm=False))
+        self.assertEqual(ctx.exception.status_code, 409)
+
+
 class TestDeploy(unittest.TestCase):
     """DeployJobs menjalankan reset.sh; di sini reset.sh palsu (tanpa containerlab)."""
 

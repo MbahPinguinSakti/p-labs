@@ -22,9 +22,10 @@ dan diulang dari file.
 
 ## Alur satu sesi
 
-1. **Deploy** (`reset-lab`): destroy, buat `.state/` + `session_id`, lalu
-   `containerlab deploy`, `verify.sh` (harus 100), dan `inject.sh` (fault +
-   `ground_truth.json`).
+1. **Deploy** (`reset-lab`): destroy, buat `.state/`, lalu `containerlab
+   deploy`, `verify.sh` (harus 100), dan `inject.sh` (fault +
+   `ground_truth.json`). `session_id` ditulis **paling akhir**, jadi sesi baru
+   dianggap ada kalau semua tahap berhasil.
 2. **Bermain**: setiap command yang selesai di node ditulis oleh hook bash
    sebagai satu baris JSON (command, exit code, waktu). Di sisi host, `script`
    merekam input dan output mentah terminal.

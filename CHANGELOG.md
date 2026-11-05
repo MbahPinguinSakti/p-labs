@@ -6,6 +6,79 @@ Format tiap entri: **apa** yang berubah, **kenapa** (gejala/temuan), **file**, d
 
 ---
 
+## 2026-11-06 (6): Perbaikan: build image RouterOS di VM Ubuntu
+
+**Gejala** (laporan user, VM Ubuntu):
+- `build-routeros-image.sh` gagal `unknown flag: --platform`, lalu `No such image: vrnetlab/mikrotik_routeros:7.20.4`;
+- muncul peringatan `/dev/kvm tidak bisa diakses`.
+
+**Penyebab**:
+- Makefile vrnetlab memanggil `docker buildx build --platform`. Paket `docker.io` di Ubuntu tidak menyertakan plugin buildx, sehingga docker membaca `buildx` sebagai perintah tak dikenal.
+- vrnetlab versi baru men-tag image dengan akhiran arsitektur (`7.20.4-amd64`), padahal lab memakai `7.20.4`. Jadi build yang berhasil pun akan gagal di pengecekan akhir.
+- `/dev/kvm` tidak ada karena P-lab berjalan di VM tanpa nested virtualization.
+
+### Diperbaiki
+- `platform/build-routeros-image.sh`:
+  - mengecek `docker buildx version` sebelum mulai, dan menampilkan nama paket per distro kalau belum ada;
+  - setelah build, kalau hanya ada tag ber-akhiran (`<versi>-*`), image di-tag ulang ke `<versi>`;
+  - peringatan KVM dibedakan: tidak ada di VM (nested virtualization), tidak ada di mesin fisik (BIOS), atau ada tapi tanpa izin (grup kvm).
+- `install.sh --check`: diagnosis KVM yang sama.
+- `docs/instalasi.md`: syarat buildx dan bagian baru "P-lab di dalam VM" (cara mengaktifkan nested virtualization per hypervisor).
+
+### Verifikasi
+- `bash -n` lulus untuk kedua script.
+- Logika tag ulang dites dengan image dummy (`plabtest/ros:9.9.9-amd64` → `:9.9.9`, lalu dihapus).
+- Build CHR sungguhan belum dites, baik di sini maupun di VM.
+
+---
+
+## 2026-11-06 (5): Perbaikan: "Penilaian gagal: ground_truth.json tidak ada"
+
+**Gejala** (laporan user, VM Ubuntu): tombol nilai menampilkan `FileNotFoundError: .state/ground_truth.json`.
+
+**Penyebab**: `session_id` ditulis **sebelum** fault dipasang, baik di `reset-lab` (sebelum `containerlab deploy`) maupun di `sessions.rearm` (sebelum `inject.sh`). Kalau deploy, verify, atau inject gagal, `.state/` tetap berisi `session_id` tanpa `ground_truth.json`. Server lalu menganggapnya sesi aktif: terminal terbuka, command direkam, dan baru gagal saat dinilai. Di Ubuntu kemungkinan besar deploy atau verify gagal, karena lab-nya baru pertama kali dipasang di sana.
+
+### Diperbaiki
+- `reset-lab` dan `sessions.rearm` menulis `session_id` **terakhir**, setelah `inject.sh` berhasil dan `ground_truth.json` terbukti ada. Kalau file itu tidak ada, keduanya gagal dengan pesan jelas.
+- `server.py`: `armed(lab)` mensyaratkan `session_id` dan `ground_truth.json`. Fungsi ini dipakai di `live_state`, `/start`, dan `/evaluate`, jadi state rusak sisa versi lama tampil sebagai "belum ada sesi" dan bisa langsung di-deploy atau dimulai ulang.
+- `evaluate.py`: kalau ground truth tidak ada, pesannya menyuruh memulai sesi baru, bukan menampilkan traceback.
+- `docs/arsitektur.md`: urutan deploy diperbarui.
+
+### Verifikasi
+- `TestUnarmedSession`: sesi tanpa ground truth tidak tampil aktif, dan `/evaluate` menjawab 409.
+- Semua test lulus (76 OK, 2 dilewati).
+- `bash -n platform/reset-lab` lulus.
+- Deploy sungguhan belum diulang di sini (butuh sudo).
+
+---
+
+## 2026-11-06 (4): Perbaikan: installer gagal `Permission denied` (Ubuntu VM)
+
+**Gejala** (laporan user, VM Ubuntu):
+- `pip` mendapat `Permission denied: .venv/pyvenv.cfg`;
+- `npm ci` mendapat `EACCES rmdir web/node_modules/.bin`;
+- build web gagal dengan `Cannot find native binding` (rolldown).
+
+**Penyebab**:
+- `.venv` dan `node_modules` milik root, kemungkinan karena run sebelumnya memakai `sudo ./install.sh` (atau `sudo npm`). Installer sendiri tidak membuat file sebagai root.
+- Error rolldown hanya efek samping: `npm ci` berhenti di tengah, jadi binding native-nya belum terpasang.
+- Installer tetap lanjut setelah langkah yang gagal. `cmd && ok "..."` tidak memicu `set -e`, sehingga build web tetap dijalankan dengan `node_modules` yang rusak.
+
+### Diperbaiki
+- `install.sh`:
+  - menolak berjalan sebagai root, karena sudo dipanggil sendiri per langkah;
+  - memeriksa kepemilikan `.venv`, `web/node_modules`, `web/dist`, dan `~/.npm`, lalu menawarkan `sudo chown -R $USER:`. Kalau ditolak, installer berhenti dengan perintah perbaikannya. `--check` ikut melaporkannya;
+  - kegagalan pip, `npm ci`, atau build web sekarang menghentikan installer (`die`) dan tidak lanjut diam-diam.
+- `docs/instalasi.md`: satu baris baru di tabel Masalah umum.
+
+### Verifikasi
+- `bash -n` lulus.
+- `./install.sh --check` di mesin ini bersih.
+- Simulasi file milik user lain (`USER=nobody`) terdeteksi di `--check` maupun run biasa. Installer berhenti dengan perintah `chown`.
+- Belum dites di VM Ubuntu.
+
+---
+
 ## 2026-11-06 (3): Perbaikan: terminal web menampilkan `login:` di Ubuntu
 
 **Gejala** (laporan user, Ubuntu): terminal di halaman sesi menampilkan `[user] login:` dan tidak bisa diketik.

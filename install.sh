@@ -39,6 +39,7 @@ ok()   { printf '  %s✓%s %s\n' "$G" "$N" "$*"; }
 warn() { printf '  %s!%s %s\n' "$Y" "$N" "$*"; NOTES+=("$*"); }
 bad()  { printf '  %s✗%s %s\n' "$R" "$N" "$*"; }
 step() { printf '\n%s%s%s\n' "$B" "$*" "$N"; }
+die()  { bad "$*"; exit 1; }
 ask() {  # ask "pertanyaan" -> 0 kalau ya
   (( YES )) && return 0
   [[ -t 0 ]] || return 1
@@ -48,6 +49,22 @@ ask() {  # ask "pertanyaan" -> 0 kalau ya
 }
 NOTES=()
 NEED_RELOGIN=0
+USER=${USER:-$(id -un)}
+
+# Installer berjalan sebagai user biasa; sudo dipanggil sendiri untuk langkah yang
+# butuh root. `sudo ./install.sh` membuat .venv dan node_modules milik root, lalu
+# semua run berikutnya (dan service user) gagal "Permission denied".
+if (( EUID == 0 )); then
+  echo "Jangan jalankan installer dengan sudo/root. Jalankan sebagai user biasa: ./install.sh" >&2
+  echo "(installer meminta password sudo sendiri saat perlu)" >&2
+  exit 1
+fi
+
+# Sisa run lama dengan sudo: folder hasil build milik root tidak bisa ditimpa.
+FOREIGN=()
+for path in .venv web/node_modules web/dist "$HOME/.npm"; do
+  [[ -e $path ]] && [[ -n $(find "$path" ! -user "$USER" -print -quit 2>/dev/null) ]] && FOREIGN+=("$path")
+done
 
 # --- distro --------------------------------------------------------------------------
 . /etc/os-release 2>/dev/null || true
@@ -173,6 +190,7 @@ fi
 
 if (( CHECK )); then
   step "Mode --check"
+  (( ${#FOREIGN[@]} )) && bad "bukan milikmu (sisa run dengan sudo?): ${FOREIGN[*]} → sudo chown -R $USER: ${FOREIGN[*]}"
   [[ -x .venv/bin/python ]] && .venv/bin/python -c 'import fastapi, yaml' 2>/dev/null && ok "venv Python siap" || bad "venv Python belum siap (.venv)"
   [[ -f web/dist/index.html ]] && ok "web UI sudah di-build" || bad "web UI belum di-build (web/dist)"
   systemctl --user is-active -q p-lab 2>/dev/null && ok "service p-lab berjalan" || bad "service p-lab tidak berjalan"
@@ -182,9 +200,23 @@ if (( CHECK )); then
     docker image inspect "$image" >/dev/null 2>&1 && ok "image $image" \
       || bad "image $image belum dibangun (lab RouterOS): platform/build-routeros-image.sh"
   done
-  [[ -r /dev/kvm && -w /dev/kvm ]] && ok "KVM tersedia (/dev/kvm)" || bad "KVM tidak bisa diakses: lab RouterOS akan sangat lambat"
+  if [[ -r /dev/kvm && -w /dev/kvm ]]; then ok "KVM tersedia (/dev/kvm)"
+  elif [[ -e /dev/kvm ]]; then bad "/dev/kvm tidak bisa diakses user ini: sudo usermod -aG kvm $USER (lab RouterOS)"
+  elif systemd-detect-virt -q 2>/dev/null; then bad "tidak ada /dev/kvm di VM ini: aktifkan nested virtualization di hypervisor (lab RouterOS)"
+  else bad "tidak ada /dev/kvm: aktifkan VT-x/AMD-V di BIOS (lab RouterOS akan sangat lambat)"; fi
   [[ -x .venv/bin/python ]] && { .venv/bin/python platform/lablint.py labs/*/ | sed 's/^/  /'; } || true
   exit 0
+fi
+
+# --- 1b. kepemilikan file ---------------------------------------------------------------
+if (( ${#FOREIGN[@]} )); then
+  step "Kepemilikan file"
+  bad "bukan milikmu (sisa run dengan sudo?): ${FOREIGN[*]}"
+  if ask "Kembalikan kepemilikan ke $USER? (sudo chown -R $USER: ...)"; then
+    sudo chown -R "$USER:" "${FOREIGN[@]}" && ok "kepemilikan diperbaiki"
+  else
+    die "Perbaiki dulu: sudo chown -R $USER: ${FOREIGN[*]}"
+  fi
 fi
 
 # --- 2. Python -------------------------------------------------------------------------
@@ -196,14 +228,17 @@ if [[ -x .venv/bin/python ]] && .venv/bin/python -c 'import sys' 2>/dev/null \
 else
   python3 -m venv --clear .venv && ok "venv dibuat"
 fi
-.venv/bin/python -m pip install -q --upgrade pip
-.venv/bin/python -m pip install -q -r platform/requirements.txt && ok "paket Python terpasang (platform/requirements.txt)"
+.venv/bin/python -m pip install -q --upgrade pip || die "gagal meng-upgrade pip di .venv"
+.venv/bin/python -m pip install -q -r platform/requirements.txt || die "gagal memasang platform/requirements.txt"
+ok "paket Python terpasang (platform/requirements.txt)"
 
 # --- 3. Web UI -------------------------------------------------------------------------
 step "3/6 Web UI (web/)"
 if have npm; then
-  (cd web && npm ci --no-audit --no-fund --loglevel=error) && ok "dependensi npm terpasang"
-  (cd web && npm run build >/dev/null) && ok "web UI di-build ke web/dist"
+  (cd web && npm ci --no-audit --no-fund --loglevel=error) || die "npm ci gagal (lihat pesan di atas)"
+  ok "dependensi npm terpasang"
+  (cd web && npm run build >/dev/null) || die "build web UI gagal"
+  ok "web UI di-build ke web/dist"
 else
   warn "npm tidak ada: web UI belum bisa di-build."
 fi

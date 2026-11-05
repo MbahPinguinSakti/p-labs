@@ -62,7 +62,6 @@ echo "==> destroy"
 rm -rf .state 2>/dev/null || sudo rm -rf .state
 # Dibuat sebelum deploy supaya bind mount events/ tetap milik user, bukan root.
 mkdir -p .state/events .state/tty
-date +%Y%m%d-%H%M%S > .state/session_id
 
 echo "==> deploy"
 "${CLAB[@]}" deploy -t "$TOPO"
@@ -89,5 +88,9 @@ done
 
 echo "==> inject"
 "./$INJECT" "$@"
+[[ -f .state/ground_truth.json ]] || { echo "$INJECT tidak menulis .state/ground_truth.json." >&2; exit 1; }
+# session_id paling akhir: ada session_id = sesi siap dimainkan. Kalau tahap mana
+# pun gagal, lab tidak terlihat seperti sesi aktif tanpa ground truth.
+date +%Y%m%d-%H%M%S > .state/session_id
 echo "Sesi $(cat .state/session_id) siap. Buka http://localhost:8000/labs/$LAB_ID"
 echo "(atau dari terminal: $HERE/lab-shell . <node>)"

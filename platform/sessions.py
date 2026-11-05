@@ -54,11 +54,14 @@ def rearm(problem_dir):
             child.unlink()
     events.mkdir(parents=True, exist_ok=True)
     (state / "tty").mkdir(exist_ok=True)
-    session = time.strftime("%Y%m%d-%H%M%S")
-    (state / "session_id").write_text(session + "\n")
     proc = subprocess.run([str(problem_dir / "inject.sh")], capture_output=True, text=True)
     if proc.returncode != 0:
         raise SessionError(f"inject.sh gagal: {proc.stderr or proc.stdout}")
+    if not (state / "ground_truth.json").exists():
+        raise SessionError("inject.sh tidak menulis .state/ground_truth.json.")
+    # Ditulis terakhir (sama seperti reset-lab): session_id = sesi siap dimainkan.
+    session = time.strftime("%Y%m%d-%H%M%S")
+    (state / "session_id").write_text(session + "\n")
     return session
 
 

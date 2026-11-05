@@ -96,16 +96,39 @@ platform/build-routeros-image.sh          # → vrnetlab/mikrotik_routeros:7.20.
 
 Script itu mengambil vrnetlab ke `~/.cache/p-lab/vrnetlab`, mengunduh
 `chr-<versi>.vmdk` (±50 MB) dari download.mikrotik.com, lalu menjalankan `make
-docker-image`. Butuh `git`, `curl`, `unzip`, dan `make`.
+docker-image`. Butuh `git`, `curl`, `unzip`, `make`, dan plugin **docker
+buildx**. Di Ubuntu/Debian, pasang dengan `sudo apt install docker-buildx`, atau
+`docker-buildx-plugin` kalau Docker dari repo docker.com. Tanpa plugin itu,
+build gagal dengan `unknown flag: --platform`.
 
 | Kebutuhan | Keterangan |
 |---|---|
-| KVM (`/dev/kvm`) | virtualisasi (VT-x/AMD-V) aktif di BIOS. Tanpa KVM, CHR tetap jalan tapi sangat lambat |
+| KVM (`/dev/kvm`) | virtualisasi (VT-x/AMD-V) aktif di BIOS. Di dalam VM, harus pakai nested virtualization (lihat bawah). Tanpa KVM, CHR diemulasi penuh: boot bisa lebih dari 5 menit dan deploy kemungkinan melewati `ready_timeout` |
 | RAM | ±256 MB per router (net-003: 3 router) |
 | Waktu deploy | 2–4 menit: router harus boot, lalu OSPF konvergen |
 
 CHR tanpa lisensi berbayar berjalan dalam mode *free*, dengan upload dibatasi
 1 Mbit/s per interface. Batas ini tidak berpengaruh untuk lab troubleshooting.
+
+### P-lab di dalam VM
+
+CHR sendiri adalah VM. Kalau P-lab dijalankan di dalam VM (VirtualBox,
+VMware, virt-manager, Hyper-V), hasilnya VM di dalam VM. Supaya cepat, CPU VM
+P-lab harus meneruskan virtualisasi ke dalam (*nested virtualization*), sehingga
+`/dev/kvm` muncul di dalamnya. Matikan VM-nya dulu, lalu:
+
+| Hypervisor (di host) | Cara mengaktifkan |
+|---|---|
+| virt-manager / KVM (host Linux) | CPU model `host-passthrough`. Cek host: `cat /sys/module/kvm_intel/parameters/nested` (atau `kvm_amd`) harus `Y`/`1` |
+| VirtualBox | Settings → System → Processor → **Enable Nested VT-x/AMD-V**, atau `VBoxManage modifyvm <vm> --nested-hw-virt on` |
+| VMware Workstation/Fusion | Settings → Processors → **Virtualize Intel VT-x/EPT or AMD-V/RVI** |
+| Hyper-V (host Windows) | `Set-VMProcessor -VMName <vm> -ExposeVirtualizationExtensions $true` (PowerShell admin) |
+
+Setelah VM dinyalakan, cek dengan `ls -l /dev/kvm` dan `./install.sh --check`.
+Kalau `/dev/kvm` ada tapi tidak bisa diakses, jalankan `sudo usermod -aG kvm
+$USER` lalu login ulang. Di host Windows, VirtualBox kadang tidak bisa memakai
+nested virtualization kalau Hyper-V/WSL2 aktif. Lab Linux (`net-001`) tidak
+butuh KVM sama sekali.
 
 ## Evaluator AI
 
@@ -179,6 +202,7 @@ Kalau distromu tidak dikenali installer:
 | Deploy gagal di tahap `verify` | Lab tidak sehat sebelum fault dipasang. Jalankan `./verify.sh` di folder lab untuk melihat masalahnya. Biasanya image belum terunduh atau RAM kurang. |
 | "Lab belum sehat ... Jalankan ./reset.sh" saat Mulai sesi | Lab rusak, misalnya container restart setelah reboot sehingga bridge hilang. Pakai **Reset lab** atau `./reset.sh`. |
 | Terminal di web menampilkan `login:` dan tidak bisa diketik (Ubuntu/Debian) | Itu ttyd milik service systemd `ttyd` bawaan paket distro, bukan terminal lab. Sejak versi ini server hanya memakai ttyd yang menjalankan lab-shell, dan memilih port lain kalau 7681 dipakai proses lain. Update (`git pull && ./install.sh`), lalu matikan service bawaannya: `sudo systemctl disable --now ttyd`. |
+| `Permission denied` di `.venv` / `EACCES` di `web/node_modules`, lalu `Cannot find native binding` (rolldown) | Folder itu milik root karena installer atau npm pernah dijalankan dengan `sudo`. Jalankan `./install.sh` **tanpa sudo**. Installer mendeteksinya dan menawarkan `sudo chown -R $USER: .venv web/node_modules web/dist ~/.npm`. Error rolldown hanya akibat `npm ci` yang gagal di tengah jalan, jadi akan hilang setelah install ulang berhasil. |
 | Terminal di web kosong | `ttyd` belum terpasang, atau port 7681 dipakai proses lain. Cek dengan `./install.sh --check`. |
 | `web/dist belum ada` | Build web UI gagal. Jalankan `cd web && npm ci && npm run build` dan perhatikan error-nya. Penyebab tersering: versi Node terlalu lama. |
 | Port 8000 sudah dipakai | Jalankan server di port lain: `platform/web --port 8080` (atau ubah `ExecStart` di `~/.config/systemd/user/p-lab.service`). |
