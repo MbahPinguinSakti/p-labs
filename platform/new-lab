@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Buat lab baru dari platform/templates/lab.
+# Usage: new-lab <id> [--title "Judul"]   (detail: newlab.py)
+HERE=$(cd "$(dirname "$0")" && pwd)
+PY="$(dirname "$HERE")/.venv/bin/python"
+[[ -x $PY ]] || PY=python3
+exec "$PY" "$HERE/newlab.py" "$@"

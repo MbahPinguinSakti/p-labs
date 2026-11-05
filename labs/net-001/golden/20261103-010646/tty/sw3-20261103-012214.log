@@ -1,0 +1,16 @@
+Script started on 2026-11-03 01:22:14+07:00 [COMMAND="docker exec -it -e LAB_NODE=sw3 -e LAB_SESSION=20261103-010646 clab-net001-sw3 bash --rcfile /etc/lab/rc -i" TERM="alacritty" TTY="/dev/pts/8" COLUMNS="140" LINES="40"]
+[?2004h[1;32msw3[0m:~# bbrriiddggee  vvllaann  sshhooww
+[?2004lport              vlan-id  
+eth1              10
+                  20
+eth2              20 PVID Egress Untagged
+br0               1 PVID Egress Untagged
+                  10
+[?2004h[1;32msw3[0m:~# exitexit
+[?2004lexit
+
+[1mWhat's next:[0m
+    Try Docker Debug for seamless, persistent debugging tools in any container or image → [36mdocker debug clab-net001-sw3[0m
+    Learn more at https://docs.docker.com/go/debug-cli/
+
+Script done on 2026-11-03 01:23:24+07:00 [COMMAND_EXIT_CODE="0"]

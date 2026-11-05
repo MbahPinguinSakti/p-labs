@@ -1,0 +1,4 @@
+{"session": "20261019-234339", "id": "diagnose", "type": "command_match", "ts": 1792428280.760666, "node": "sw2", "evidence": "bridge -d vlan"}
+{"session": "20261019-234339", "id": "locate_fault", "type": "command_match", "ts": 1792428280.760666, "node": "sw2", "evidence": "bridge -d vlan"}
+{"session": "20261019-234339", "id": "apply_fix", "type": "state_check", "ts": 1792430323.633604, "node": "sw2", "evidence": "setelah `bridge vlan add dev eth2 vid 20`: bridge vlan show dev eth2"}
+{"session": "20261019-234339", "id": "verify_fix", "type": "command_match", "ts": 1792431427.876335, "node": "host-a", "evidence": "ping 10.20.0.2"}

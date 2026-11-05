@@ -1,0 +1,106 @@
+# net-001: VLAN Trunk Misconfiguration
+#
+#   host-a --- sw1 ===== sw2 ===== sw3 --- host-b
+#        access     trunk     trunk     access
+#        vlan 20   (10,20)   (10,20)    vlan 20
+#
+# VLAN 20 = data (host-a 10.20.0.1, host-b 10.20.0.2)
+# VLAN 10 = management switch (vlan10: sw1 10.10.0.11, sw2 .12, sw3 .13)
+#
+# Switch = Linux bridge dengan vlan_filtering. Node tidak punya jaringan
+# management (network-mode: none): semua akses lewat `docker exec`, dan
+# host-a/host-b hanya bisa saling menjangkau lewat jalur VLAN 20 yang jadi soal.
+name: net001
+
+topology:
+  defaults:
+    kind: linux
+    image: nicolaka/netshoot:v0.13
+    network-mode: none
+    binds:
+      # Hook perekaman command (dipakai platform/lab-shell).
+      - ../../platform/lab-rc.sh:/etc/lab/rc:ro
+      # Event JSONL per node. reset.sh membuat direktori ini sebelum deploy
+      # supaya tetap milik user, bukan root.
+      - .state/events:/var/log/lab
+
+  nodes:
+    sw1:
+      exec:
+        - ip link add br0 type bridge vlan_filtering 1
+        - ip link set eth1 master br0
+        - ip link set eth2 master br0
+        # eth1: access VLAN 20 ke host-a
+        - bridge vlan del dev eth1 vid 1
+        - bridge vlan add dev eth1 vid 20 pvid untagged
+        # eth2: trunk ke sw2
+        - bridge vlan del dev eth2 vid 1
+        - bridge vlan add dev eth2 vid 10
+        - bridge vlan add dev eth2 vid 20
+        - ip link set eth1 up
+        - ip link set eth2 up
+        - ip link set br0 up
+        # Management: SVI di VLAN 10 (setara `interface vlan 10`)
+        - bridge vlan add dev br0 vid 10 self
+        - ip link add link br0 name vlan10 type vlan id 10
+        - ip addr add 10.10.0.11/24 dev vlan10
+        - ip link set vlan10 up
+
+    sw2:
+      exec:
+        - ip link add br0 type bridge vlan_filtering 1
+        - ip link set eth1 master br0
+        - ip link set eth2 master br0
+        # eth1: trunk ke sw1
+        - bridge vlan del dev eth1 vid 1
+        - bridge vlan add dev eth1 vid 10
+        - bridge vlan add dev eth1 vid 20
+        # eth2: trunk ke sw3
+        - bridge vlan del dev eth2 vid 1
+        - bridge vlan add dev eth2 vid 10
+        - bridge vlan add dev eth2 vid 20
+        - ip link set eth1 up
+        - ip link set eth2 up
+        - ip link set br0 up
+        # Management: SVI di VLAN 10 (setara `interface vlan 10`)
+        - bridge vlan add dev br0 vid 10 self
+        - ip link add link br0 name vlan10 type vlan id 10
+        - ip addr add 10.10.0.12/24 dev vlan10
+        - ip link set vlan10 up
+
+    sw3:
+      exec:
+        - ip link add br0 type bridge vlan_filtering 1
+        - ip link set eth1 master br0
+        - ip link set eth2 master br0
+        # eth1: trunk ke sw2
+        - bridge vlan del dev eth1 vid 1
+        - bridge vlan add dev eth1 vid 10
+        - bridge vlan add dev eth1 vid 20
+        # eth2: access VLAN 20 ke host-b
+        - bridge vlan del dev eth2 vid 1
+        - bridge vlan add dev eth2 vid 20 pvid untagged
+        - ip link set eth1 up
+        - ip link set eth2 up
+        - ip link set br0 up
+        # Management: SVI di VLAN 10 (setara `interface vlan 10`)
+        - bridge vlan add dev br0 vid 10 self
+        - ip link add link br0 name vlan10 type vlan id 10
+        - ip addr add 10.10.0.13/24 dev vlan10
+        - ip link set vlan10 up
+
+    host-a:
+      exec:
+        - ip addr add 10.20.0.1/24 dev eth1
+        - ip link set eth1 up
+
+    host-b:
+      exec:
+        - ip addr add 10.20.0.2/24 dev eth1
+        - ip link set eth1 up
+
+  links:
+    - endpoints: ["host-a:eth1", "sw1:eth1"]
+    - endpoints: ["sw1:eth2", "sw2:eth1"]
+    - endpoints: ["sw2:eth2", "sw3:eth1"]
+    - endpoints: ["sw3:eth2", "host-b:eth1"]

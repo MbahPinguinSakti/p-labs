@@ -1,0 +1,4 @@
+Script started on 2026-10-19 23:53:47+07:00 [COMMAND="docker exec -it -e LAB_NODE=sw3 -e LAB_SESSION=20261019-234339 clab-net001-sw3 bash --rcfile /etc/lab/rc -i" TERM="xterm-256color" TTY="/dev/pts/4" COLUMNS="146" LINES="47"]
+[?2004h[1;32msw3[0m:~# ppiinngg  1100..2200..00..11
+[?2004lping: connect: Network unreachable
+[?2004h[1;32msw3[0m:~# 

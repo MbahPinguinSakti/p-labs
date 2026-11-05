@@ -1,0 +1,20 @@
+Script started on 2026-10-20 00:30:04+07:00 [COMMAND="docker exec -it -e LAB_NODE=sw1 -e LAB_SESSION=20261019-234339 clab-net001-sw1 bash --rcfile /etc/lab/rc -i" TERM="alacritty" TTY="/dev/pts/3" COLUMNS="192" LINES="47"]
+[?2004h[1;32msw1[0m:~# iipp[K[Kbbrriiddggee  sshhooww  vvll[K[K[K[K[K[K[Kvvllaann  ssjjpp[K[Khhooww
+[?2004lport              vlan-id  
+eth1              10
+                  20
+eth2              10
+                  20
+br0               1 PVID Egress Untagged
+                  10
+[?2004h[1;32msw1[0m:~# [Abridge vlan show[A[B[C[C[C[C[C[C[C[K[Bbbrriiddggee  vvllaann  aadddd  ddeevv  eetthh1100[K  vvllaa[K[Kiidd  2200  uunnttaaggggeedd
+[?2004l[?2004h[1;32msw1[0m:~# ppiinngg  1100..2200..00..11
+[?2004lping: connect: Network unreachable
+[?2004h[1;32msw1[0m:~# [Aping 10.20.0.1[B[C[C[C[C[C[C[C[Keexxiitt
+[?2004lexit
+
+[1mWhat's next:[0m
+    Try Docker Debug for seamless, persistent debugging tools in any container or image → [36mdocker debug clab-net001-sw1[0m
+    Learn more at https://docs.docker.com/go/debug-cli/
+
+Script done on 2026-10-20 00:32:59+07:00 [COMMAND_EXIT_CODE="2"]

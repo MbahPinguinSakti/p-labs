@@ -1,0 +1,3 @@
+{"ts":1793648198.655942,"session":"20261103-023553","node":"sw2","type":"command","data":"bridge vlan show","exit":0}
+{"ts":1793648290.320517,"session":"20261103-023553","node":"sw2","type":"command","data":"ip -d link show br0","exit":0}
+{"ts":1793648317.127850,"session":"20261103-023553","node":"sw2","type":"command","data":"ip link set br0 type bridge vlan_filtering 0","exit":0}

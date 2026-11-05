@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Periksa problem.yaml dan file sebuah lab (statis, tanpa docker).
+# Usage: lab-lint <lab_dir> [<lab_dir> ...]   (detail: lablint.py)
+HERE=$(cd "$(dirname "$0")" && pwd)
+PY="$(dirname "$HERE")/.venv/bin/python"
+[[ -x $PY ]] || PY=python3
+exec "$PY" "$HERE/lablint.py" "$@"

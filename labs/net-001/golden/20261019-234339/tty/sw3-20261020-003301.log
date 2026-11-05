@@ -1,0 +1,30 @@
+Script started on 2026-10-20 00:33:01+07:00 [COMMAND="docker exec -it -e LAB_NODE=sw3 -e LAB_SESSION=20261019-234339 clab-net001-sw3 bash --rcfile /etc/lab/rc -i" TERM="alacritty" TTY="/dev/pts/3" COLUMNS="192" LINES="47"]
+[?2004h[1;32msw3[0m:~# ii[Kbbrriiddggee  sshhooww  vvllaanndd
+[?2004lObject "show" is unknown, try "bridge help".
+[?2004h[1;32msw3[0m:~# [Abridge show vland[1;5D[1Pvland[1Pvland[1Pvland[1Pvland[1Pvland[1;5C[C[C[C[C[C  sshhooww
+[?2004lObject "vland" is unknown, try "bridge help".
+[?2004h[1;32msw3[0m:~# [Abridge vland show[D[D[D[D[D[1P show
+[?2004lport              vlan-id  
+eth1              10
+                  20
+eth2              20
+br0               1 PVID Egress Untagged
+                  10
+[?2004h[1;32msw3[0m:~# ss[Krrbb[K[Kbbrriiddggee  vvllaann  aadddd  ddee[K[Kddeevvee[K  eetthh22  vviidd  2200  uunnttaaggggeedd
+[?2004l[?2004h[1;32msw3[0m:~# [Abridge vlan add dev eth2 vid 20 untagged[A[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[Cshow[K
+[?2004lport              vlan-id  
+eth1              10
+                  20
+eth2              20 Egress Untagged
+br0               1 PVID Egress Untagged
+                  10
+[?2004h[1;32msw3[0m:~# ppiinngg  1100..2200..11[K00..11
+[?2004lping: connect: Network unreachable
+[?2004h[1;32msw3[0m:~# eexxiitt
+[?2004lexit
+
+[1mWhat's next:[0m
+    Try Docker Debug for seamless, persistent debugging tools in any container or image → [36mdocker debug clab-net001-sw3[0m
+    Learn more at https://docs.docker.com/go/debug-cli/
+
+Script done on 2026-10-20 00:33:49+07:00 [COMMAND_EXIT_CODE="2"]

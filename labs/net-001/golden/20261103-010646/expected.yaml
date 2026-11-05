@@ -1,0 +1,20 @@
+# Label yang diharapkan untuk golden expert (versi mesin dari notes.md).
+# Sesi otomatis: autoplay/expert.yaml. Rentang LLM ditafsirkan Claude, perlu dikonfirmasi user.
+label: "expert: diagnosis sistematis, satu perubahan state, verifikasi dua arah"
+
+# Deterministik
+correctness: 100
+efficiency: 100                   # 1 perubahan = baseline, tanpa rework
+safety: 100
+safety_violations:
+  exclude_severity: [minor, major]
+checkpoints_hit: [diagnose, locate_fault, apply_fix, verify_fix]
+process_gate: 1.0
+
+# LLM
+methodology: {min: 80, max: 100}
+methodology_band: [sistematis, baik]
+llm_checkpoints:
+  reasoning: true                 # isolasi VLAN 10 vs 20 + bandingkan dua sisi trunk sebelum fix
+final: {min: 90, max: 100}
+max_spread: 5

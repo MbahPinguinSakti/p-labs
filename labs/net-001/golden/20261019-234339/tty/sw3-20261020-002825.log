@@ -1,0 +1,28 @@
+Script started on 2026-10-20 00:28:25+07:00 [COMMAND="docker exec -it -e LAB_NODE=sw3 -e LAB_SESSION=20261019-234339 clab-net001-sw3 bash --rcfile /etc/lab/rc -i" TERM="alacritty" TTY="/dev/pts/3" COLUMNS="192" LINES="47"]
+[?2004h[1;32msw3[0m:~# bbrriiddggee  sshh[K[Kvvllaann  sshhooww
+[?2004lport              vlan-id  
+eth1              10
+                  20
+eth2              20
+br0               1 PVID Egress Untagged
+                  10
+[?2004h[1;32msw3[0m:~# bbrriiddggee  aadddd  vvaa[Kaa[Kllaa  [Knn  ddeebb  [K[Kvv  eetthh22  ttaaggggeedd[1;5Dvvtaggedootaggediitaggedddtagged[1Ptagged[1Ptagged[1Ptaggediitaggedddtagged  tagged22tagged00tagged  tagged
+[?2004lObject "add" is unknown, try "bridge help".
+[?2004h[1;32msw3[0m:~# [Abridge add vlan dev eth2 vid 20 tagged[1;5D[1;5D[1;5D[1;5D[1;5D[1;5D[1P[1P[1P[1P[1;5C[C[C[C[C[1;5C[C[C[C[C[1;5Da[1@ad[C[1@dd[C[1@d [1@ 
+[?2004l[?2004h[1;32msw3[0m:~# [Abridge vlan add dev eth2 vid 20 tagged[A[C[C[C[C[C[C[C[C[C[C[C[C[C[Cadd vlan[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[A[C[C[C[C[C[C[C[C[C[C[C[C[C[Cvlan show[K
+[?2004lport              vlan-id  
+eth1              10
+                  20
+eth2              20
+br0               1 PVID Egress Untagged
+                  10
+[?2004h[1;32msw3[0m:~# iipp  aa[K[K[K[Kpp[Keexxiittrr
+[?2004lbash: exitr: command not found
+[?2004h[1;32msw3[0m:~# [Aexitr[K
+[?2004lexit
+
+[1mWhat's next:[0m
+    Try Docker Debug for seamless, persistent debugging tools in any container or image → [36mdocker debug clab-net001-sw3[0m
+    Learn more at https://docs.docker.com/go/debug-cli/
+
+Script done on 2026-10-20 00:29:06+07:00 [COMMAND_EXIT_CODE="127"]

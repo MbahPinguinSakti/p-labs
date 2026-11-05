@@ -1,0 +1,17 @@
+{"ts":1792428251.905420,"session":"20261019-234339","node":"host-a","type":"command","data":"ip a","exit":0}
+{"ts":1792428490.519295,"session":"20261019-234339","node":"host-a","type":"command","data":"ping 10.20.0.2","exit":1}
+{"ts":1792428680.799868,"session":"20261019-234339","node":"host-a","type":"command","data":"ping 10.20.0.","exit":130}
+{"ts":1792428684.321827,"session":"20261019-234339","node":"host-a","type":"command","data":"ping 10.20.0.1","exit":0}
+{"ts":1792428686.687872,"session":"20261019-234339","node":"host-a","type":"command","data":"ping 10.20.0.2","exit":1}
+{"ts":1792430138.306369,"session":"20261019-234339","node":"host-a","type":"command","data":"ping 172.20.0.11","exit":2}
+{"ts":1792430140.209253,"session":"20261019-234339","node":"host-a","type":"command","data":"ping 172.20.0.12","exit":2}
+{"ts":1792430147.113119,"session":"20261019-234339","node":"host-a","type":"command","data":"ping 10.20.0.2","exit":1}
+{"ts":1792430383.024013,"session":"20261019-234339","node":"host-a","type":"command","data":"ping 10.20.0.2","exit":1}
+{"ts":1792430510.568566,"session":"20261019-234339","node":"host-a","type":"command","data":"ping 10.20.0.2","exit":1}
+{"ts":1792430950.978586,"session":"20261019-234339","node":"host-a","type":"command","data":"ls","exit":0}
+{"ts":1792430959.026116,"session":"20261019-234339","node":"host-a","type":"command","data":"ping 10.20.0.2","exit":1}
+{"ts":1792430968.891862,"session":"20261019-234339","node":"host-a","type":"command","data":"ip a","exit":0}
+{"ts":1792431252.027664,"session":"20261019-234339","node":"host-a","type":"command","data":"ping 10.20.0.2","exit":1}
+{"ts":1792431425.964797,"session":"20261019-234339","node":"host-a","type":"command","data":"ping 10.20.0.1","exit":0}
+{"ts":1792431427.876335,"session":"20261019-234339","node":"host-a","type":"command","data":"ping 10.20.0.2","exit":0}
+{"ts":1792431520.597115,"session":"20261019-234339","node":"host-a","type":"command","data":"ping 10.10.0.11","exit":2}

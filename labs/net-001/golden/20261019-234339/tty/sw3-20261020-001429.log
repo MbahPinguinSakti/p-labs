@@ -1,0 +1,49 @@
+Script started on 2026-10-20 00:14:29+07:00 [COMMAND="docker exec -it -e LAB_NODE=sw3 -e LAB_SESSION=20261019-234339 clab-net001-sw3 bash --rcfile /etc/lab/rc -i" TERM="xterm-256color" TTY="/dev/pts/4" COLUMNS="146" LINES="47"]
+[?2004h[1;32msw3[0m:~# bbrriigg[Kddggee  ffbbdd  vvllaann  ssjjooww[K[K[K[K[K[K[K[K[Ksshhppww[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[200~bridge fdb show br br0[201~[7mbridge fdb show br br0[27m[C[C[C[C[C[C[C[Cbridge fdb show br br0
+[?2004l33:33:00:00:00:01 dev br0 self permanent
+01:00:5e:00:00:6a dev br0 self permanent
+33:33:00:00:00:6a dev br0 self permanent
+01:00:5e:00:00:01 dev br0 self permanent
+33:33:ff:6b:b2:49 dev br0 self permanent
+01:80:c2:00:00:21 dev br0 self permanent
+aa:c1:ab:6b:b2:49 dev br0 vlan 10 master br0 permanent
+aa:c1:ab:6b:b2:49 dev br0 vlan 1 master br0 permanent
+aa:c1:ab:95:e7:90 dev eth1 vlan 10 master br0 
+aa:c1:ab:b7:d3:52 dev eth1 vlan 20 master br0 permanent
+aa:c1:ab:b7:d3:52 dev eth1 vlan 10 master br0 permanent
+aa:c1:ab:b7:d3:52 dev eth1 master br0 permanent
+33:33:00:00:00:01 dev eth1 self permanent
+01:00:5e:00:00:01 dev eth1 self permanent
+33:33:ff:b7:d3:52 dev eth1 self permanent
+aa:c1:ab:6b:b2:49 dev eth2 vlan 20 master br0 permanent
+aa:c1:ab:6b:b2:49 dev eth2 master br0 permanent
+33:33:00:00:00:01 dev eth2 self permanent
+01:00:5e:00:00:01 dev eth2 self permanent
+33:33:ff:6b:b2:49 dev eth2 self permanent
+[?2004h[1;32msw3[0m:~# [Abridge fdb show br br0[K[K[Keetthh11
+[?2004l[?2004h[1;32msw3[0m:~# [Abridge fdb show br eth1[K22
+[?2004l[?2004h[1;32msw3[0m:~# [Abridge fdb show br eth2[K[K[K[Kbbrr00
+[?2004l33:33:00:00:00:01 dev br0 self permanent
+01:00:5e:00:00:6a dev br0 self permanent
+33:33:00:00:00:6a dev br0 self permanent
+01:00:5e:00:00:01 dev br0 self permanent
+33:33:ff:6b:b2:49 dev br0 self permanent
+01:80:c2:00:00:21 dev br0 self permanent
+aa:c1:ab:6b:b2:49 dev br0 vlan 10 master br0 permanent
+aa:c1:ab:6b:b2:49 dev br0 vlan 1 master br0 permanent
+aa:c1:ab:95:e7:90 dev eth1 vlan 10 master br0 
+aa:c1:ab:b7:d3:52 dev eth1 vlan 20 master br0 permanent
+aa:c1:ab:b7:d3:52 dev eth1 vlan 10 master br0 permanent
+aa:c1:ab:b7:d3:52 dev eth1 master br0 permanent
+33:33:00:00:00:01 dev eth1 self permanent
+01:00:5e:00:00:01 dev eth1 self permanent
+33:33:ff:b7:d3:52 dev eth1 self permanent
+aa:c1:ab:6b:b2:49 dev eth2 vlan 20 master br0 permanent
+aa:c1:ab:6b:b2:49 dev eth2 master br0 permanent
+33:33:00:00:00:01 dev eth2 self permanent
+01:00:5e:00:00:01 dev eth2 self permanent
+33:33:ff:6b:b2:49 dev eth2 self permanent
+[?2004h[1;32msw3[0m:~# cclleeaarr
+[?2004l[H[J[?2004h[1;32msw3[0m:~# llss[K[Kllss
+[?2004l[0;0mmotd[m
+[?2004h[1;32msw3[0m:~# ppiinngg  [K[K[K[K[K

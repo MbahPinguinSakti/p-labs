@@ -1,0 +1,20 @@
+# Skenario autoplay: "nyontek". Pemain sudah tahu jawabannya (bocoran,
+# atau mengulang soal yang sama), langsung fix tanpa diagnosis. Jalankan:
+#   ../../platform/autoplay.py . autoplay/nyontek.yaml --rearm --capture
+label: "nyontek: langsung fix tanpa diagnosis apa pun, lalu satu ping"
+notes: |
+  ## Alur
+  1. Langsung ke sw2, langsung `bridge vlan add dev eth2 vid 20`, tanpa melihat state apa pun di perangkat mana pun.
+  2. Satu ping dari host-a untuk memastikan berhasil.
+
+  ## Label yang diharapkan dari evaluator
+  - **Correctness:** 100. Hasil akhirnya memang benar.
+  - **Efficiency:** 100 (mentah). Secara angka setara expert, karena efficiency hanya menghitung perubahan state.
+  - **Process gate:** 0. `diagnose` dan `locate_fault` tidak tercapai sebelum `apply_fix`, sehingga correctness dan efficiency dikreditkan 0 di skor akhir.
+  - **Methodology:** tanpa_metode. Tidak ada satu pun command diagnostik sebelum perubahan, dan tidak ada bukti hipotesis. Lokasi fault "diketahui" tanpa pernah diamati.
+  - **Safety:** 100.
+  - Checkpoint `diagnose` dan `locate_fault` tidak tercapai. `reasoning` tidak tercapai.
+  - **Tujuan golden ini:** memastikan evaluator tidak memberi skor tinggi hanya karena hasil akhir benar dan langkahnya sedikit. Skor akhir harus jelas di bawah expert.
+steps:
+  - {node: sw2, cmd: "bridge vlan add dev eth2 vid 20", think: 10}
+  - {node: host-a, cmd: "ping -c 3 -W 1 10.20.0.2", think: 8}

@@ -1,0 +1,31 @@
+Script started on 2026-10-20 00:29:10+07:00 [COMMAND="docker exec -it -e LAB_NODE=host-a -e LAB_SESSION=20261019-234339 clab-net001-host-a bash --rcfile /etc/lab/rc -i" TERM="alacritty" TTY="/dev/pts/3" COLUMNS="192" LINES="47"]
+[?2004h[1;32mhost-a[0m:~# llss
+[?2004l[0;0mmotd[m
+[?2004h[1;32mhost-a[0m:~# ppiinngg  1100..1100[K[K2200..00..11[K22
+[?2004lPING 10.20.0.2 (10.20.0.2) 56(84) bytes of data.
+^C
+--- 10.20.0.2 ping statistics ---
+3 packets transmitted, 0 received, 100% packet loss, time 2075ms
+
+[?2004h[1;32mhost-a[0m:~# [Aping 10.20.0.2[A[C[C[C[C[C[C[C[C[C[Cls[K[Bping 10.20.0.2[B[C[C[C[C[C[C[C[C[C[C[K[Biipp  aa
+[?2004l1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host proto kernel_lo 
+       valid_lft forever preferred_lft forever
+133: eth1@if132: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue state UP group default 
+    link/ether aa:c1:ab:51:86:74 brd ff:ff:ff:ff:ff:ff link-netnsid 1
+    altname clab-o-dbc05e4fb5aae78e
+    inet 10.20.0.1/24 scope global eth1
+       valid_lft forever preferred_lft forever
+    inet6 fe80::a8c1:abff:fe51:8674/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+[?2004h[1;32mhost-a[0m:~# [Aip a[K[K[K[Keexxiitt
+[?2004lexit
+
+[1mWhat's next:[0m
+    Try Docker Debug for seamless, persistent debugging tools in any container or image → [36mdocker debug clab-net001-host-a[0m
+    Learn more at https://docs.docker.com/go/debug-cli/
+
+Script done on 2026-10-20 00:30:00+07:00 [COMMAND_EXIT_CODE="0"]

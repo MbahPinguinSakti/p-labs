@@ -1,0 +1,1 @@
+{"problem": "net-001", "faulty_switch": "sw2", "trunk_port": "eth2", "vlan_id": 20, "injected_at": "2026-11-03T01:06:53+07:00"}

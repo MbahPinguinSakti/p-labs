@@ -1,0 +1,3 @@
+{"ts":1793643709.324469,"session":"20261103-010646","node":"sw2","type":"command","data":"bridge vlan show","exit":0}
+{"ts":1793643766.463595,"session":"20261103-010646","node":"sw2","type":"command","data":"bridge vlan add dev eth2 vid 20","exit":0}
+{"ts":1793643772.517264,"session":"20261103-010646","node":"sw2","type":"command","data":"bridge vlan show dev eth2","exit":0}

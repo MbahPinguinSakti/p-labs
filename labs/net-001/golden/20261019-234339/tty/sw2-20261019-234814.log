@@ -1,0 +1,29 @@
+Script started on 2026-10-19 23:48:14+07:00 [COMMAND="docker exec -it -e LAB_NODE=sw2 -e LAB_SESSION=20261019-234339 clab-net001-sw2 bash --rcfile /etc/lab/rc -i" TERM="xterm-256color" TTY="/dev/pts/4" COLUMNS="146" LINES="47"]
+[?2004h[1;32msw2[0m:~# iipp  aa
+[?2004l1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host proto kernel_lo 
+       valid_lft forever preferred_lft forever
+2: br0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue state UP group default qlen 1000
+    link/ether aa:c1:ab:0c:1e:d0 brd ff:ff:ff:ff:ff:ff
+    inet6 fe80::a8c1:abff:fe0c:1ed0/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+3: vlan10@br0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue state UP group default qlen 1000
+    link/ether aa:c1:ab:0c:1e:d0 brd ff:ff:ff:ff:ff:ff
+    inet 10.10.0.12/24 scope global vlan10
+       valid_lft forever preferred_lft forever
+    inet6 fe80::a8c1:abff:fe0c:1ed0/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+129: eth1@if128: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue master br0 state UP group default 
+    link/ether aa:c1:ab:0c:1e:d0 brd ff:ff:ff:ff:ff:ff link-netnsid 2
+    altname clab-o-8a7353bb4e7fb4cd
+    inet6 fe80::a8c1:abff:fe0c:1ed0/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+130: eth2@if131: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue master br0 state UP group default 
+    link/ether aa:c1:ab:2f:4f:b4 brd ff:ff:ff:ff:ff:ff link-netnsid 1
+    altname clab-o-8532426a9c265fe9
+    inet6 fe80::a8c1:abff:fe2f:4fb4/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+[?2004h[1;32msw2[0m:~# vvllaa[K[K[Kiidd  [K[K[Kvvllaann[K[K[K[Kbbrrddiiggee  [K[K[K[K[K[K

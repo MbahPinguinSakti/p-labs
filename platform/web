@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Jalankan web UI P-lab di http://localhost:8000 (Fase 3).
+# Usage: platform/web [--port 8000] [--host 127.0.0.1]
+#
+# Frontend (web/) di-build ulang kalau dist/ belum ada atau src/ lebih baru.
+# Provider LLM dibaca dari env yang sama dengan evaluate.py, contoh:
+#   LAB_LLM_PROVIDER=9router LAB_LLM_API_KEY=$(cat ~/.config/lab/9router.key) platform/web
+# atau LAB_LLM_API_KEY_FILE=<path> (dipakai service systemd, lihat install-service.sh),
+# supaya key tidak pernah ditulis di file unit/env.
+set -euo pipefail
+
+if [[ -z ${LAB_LLM_API_KEY:-} && -n ${LAB_LLM_API_KEY_FILE:-} && -r $LAB_LLM_API_KEY_FILE ]]; then
+  LAB_LLM_API_KEY=$(<"$LAB_LLM_API_KEY_FILE")
+  export LAB_LLM_API_KEY
+fi
+
+HERE=$(cd "$(dirname "$0")" && pwd)
+ROOT=$(dirname "$HERE")
+PY="$ROOT/.venv/bin/python"
+[[ -x $PY ]] || PY=python3
+
+WEB="$ROOT/web"
+if [[ ! -f "$WEB/dist/index.html" || -n "$(find "$WEB/src" "$WEB/index.html" -newer "$WEB/dist/index.html" -print -quit)" ]]; then
+  echo "Build frontend (web/)…"
+  (cd "$WEB" && { [[ -d node_modules ]] || npm install; } && npm run build >/dev/null)
+fi
+
+echo "P-lab web UI: http://localhost:8000 (atau --port yang diberikan)"
+exec "$PY" "$HERE/server.py" "$@"

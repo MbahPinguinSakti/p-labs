@@ -1,0 +1,1 @@
+{"problem": "net-001", "correctness": 50, "ping_ok": true, "issues": ["sw1:eth1 (port akses) bukan access VLAN 20 murni: vlans=[10, 20] flags20=['Egress Untagged', 'PVID']"]}

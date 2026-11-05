@@ -1,0 +1,4 @@
+{"ts":1793643837.420366,"session":"20261103-012346","node":"sw2","type":"shell_open"}
+{"ts":1793643846.865672,"session":"20261103-012346","node":"host-a","type":"shell_open"}
+{"ts":1793643853.076070,"session":"20261103-012346","node":"sw2","type":"shell_close"}
+{"ts":1793643853.139965,"session":"20261103-012346","node":"host-a","type":"shell_close"}

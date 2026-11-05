@@ -1,0 +1,21 @@
+# Label yang diharapkan untuk golden "nyontek" (versi mesin dari notes.md).
+# Sesi otomatis: autoplay/nyontek.yaml. Rentang LLM ditafsirkan Claude, perlu dikonfirmasi user.
+label: "nyontek: langsung fix tanpa diagnosis, lalu satu ping"
+
+# Deterministik (skor mentah)
+correctness: 100
+efficiency: 100
+safety: 100
+safety_violations:
+  exclude_severity: [minor, major]
+checkpoints_hit: [apply_fix, verify_fix]
+checkpoints_miss: [diagnose, locate_fault]   # `bridge vlan add` bukan diagnosis
+process_gate: 0.0                 # correctness/efficiency tidak dikreditkan
+
+# LLM
+methodology: {max: 20}
+methodology_band: [tanpa_metode]
+llm_checkpoints:
+  reasoning: false                # tidak ada satu pun observasi sebelum perubahan
+final: {max: 25}                  # harus di bawah golden trial-and-error (20-50)
+max_spread: 5

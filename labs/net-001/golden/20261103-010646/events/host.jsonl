@@ -1,0 +1,10 @@
+{"ts":1793643621.580787,"session":"20261103-010646","node":"host-a","type":"shell_open"}
+{"ts":1793643665.619396,"session":"20261103-010646","node":"sw1","type":"shell_open"}
+{"ts":1793643708.573022,"session":"20261103-010646","node":"sw2","type":"shell_open"}
+{"ts":1793643734.413540,"session":"20261103-010646","node":"sw3","type":"shell_open"}
+{"ts":1793643797.638890,"session":"20261103-010646","node":"host-b","type":"shell_open"}
+{"ts":1793643803.839882,"session":"20261103-010646","node":"host-a","type":"shell_close"}
+{"ts":1793643803.912571,"session":"20261103-010646","node":"sw1","type":"shell_close"}
+{"ts":1793643803.975394,"session":"20261103-010646","node":"sw2","type":"shell_close"}
+{"ts":1793643804.039814,"session":"20261103-010646","node":"sw3","type":"shell_close"}
+{"ts":1793643804.106124,"session":"20261103-010646","node":"host-b","type":"shell_close"}

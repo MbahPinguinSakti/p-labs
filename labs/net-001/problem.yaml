@@ -1,0 +1,109 @@
+id: net-001
+category: network-engineer
+title: "VLAN Trunk Misconfiguration"
+difficulty: intermediate
+lab_topology: topo-3switch-2host.clab.yaml
+brief: brief.md
+# Tampilan di web UI. summary = kalimat di kartu lab (tanpa membocorkan fault).
+ui:
+  summary: "host-a dan host-b di VLAN 20 putus setelah maintenance. Temukan penyebabnya tanpa merusak desain VLAN."
+  ticket: "#4127"
+nos: linux-bridge
+parameters:
+  vlan_id: 20
+  faulty_switch: sw2
+  trunk_port: eth2
+fault_injection:
+  script: inject.sh      # inject.sh <faulty_switch> <trunk_port> <vlan_id>
+  description: "VLAN {{vlan_id}} dihapus dari allowed list trunk {{trunk_port}} di {{faulty_switch}}"
+  expected_fix: "bridge vlan add dev {{trunk_port}} vid {{vlan_id}} di {{faulty_switch}}"
+goal_state:
+  check: "ping dari host-a ke host-b berhasil, desain VLAN tetap utuh"
+  verify_script: verify.sh
+checkpoints:
+  - id: diagnose
+    label: Diagnosis awal
+    type: command_match
+    node: any
+    # Hanya perintah baca: `( show)?` saja akan ikut mencocokkan `bridge vlan add/del`,
+    # sehingga perintah fix dihitung sebagai diagnosis (ketahuan dari golden nyontek).
+    pattern: '^(bridge (-d )?(-j )?vlan( show( .*)?)?\s*$|ip -d link show)'
+  - id: locate_fault
+    label: Lokasi fault
+    hidden: true           # web UI: nama & bukti baru tampil setelah sesi (membocorkan lokasi)
+    type: command_match
+    node: "{{faulty_switch}}"
+    pattern: '^bridge (-d )?(-j )?vlan( show( .*)?)?\s*$'
+  - id: apply_fix
+    label: Terapkan perbaikan
+    type: state_check
+    node: "{{faulty_switch}}"
+    command: "bridge vlan show dev {{trunk_port}}"
+    expect_regex: '\b{{vlan_id}}\b'
+  - id: verify_fix
+    label: Verifikasi ujung ke ujung
+    type: command_match
+    any_of:                # ping lintas host lewat jalur data, dari arah mana pun
+      - {node: host-a, pattern: '^ping .*\b10\.20\.0\.2\b'}
+      - {node: host-b, pattern: '^ping .*\b10\.20\.0\.1\b'}
+    after: apply_fix
+    expect_exit: 0
+  - id: reasoning
+    label: Penalaran
+    type: llm_judge
+    criteria: "User membentuk hipotesis tentang VLAN/trunk sebelum mengubah config"
+    require_evidence: true
+scoring:
+  weights: {correctness: 0.3, efficiency: 0.2, methodology: 0.4, safety: 0.1}   # troubleshooting: methodology dominan
+  # Hasil hanya dikreditkan sebanding dengan bukti diagnosis SEBELUM fix.
+  # Tanpa ini, "nyontek" (langsung fix) mengalahkan pemain jujur yang berantakan.
+  process_gate:
+    requires: [diagnose, locate_fault]
+    before: apply_fix
+    applies_to: [correctness, efficiency]
+  # Aturan safety dicocokkan ke perubahan state (key dari platform/nos/<nos>.yaml)
+  # dan/atau teks command. Dihitung sekali per rule.
+  safety:
+    - id: touch_access_port
+      severity: minor
+      reason: "Mengubah port akses host yang tidak rusak (di luar jalur fault)"
+      any_of:
+        - {node: sw1, key: '^vlan eth1 '}
+        - {node: sw3, key: '^vlan eth2 '}
+    - id: mgmt_vlan_to_user_port
+      severity: minor
+      reason: "VLAN management (10) dipasang di port akses user"
+      any_of:
+        - {node: sw1, key: '^vlan eth1 10$'}
+        - {node: sw3, key: '^vlan eth2 10$'}
+    - id: disable_vlan_filtering
+      severity: major
+      reason: "Mematikan vlan_filtering: semua VLAN bercampur di satu domain broadcast"
+      pattern: 'vlan_filtering\s+0'
+    - id: remove_trunk_vlan
+      severity: major
+      reason: "Menghapus VLAN dari trunk yang sehat (outage di segmen lain)"
+      pattern: '^bridge\s+vlan\s+del\b'
+      any_of:
+        - {node: sw1, key: '^vlan eth2 '}
+        - {node: sw2, key: '^vlan eth1 '}
+        - {node: sw3, key: '^vlan eth1 '}
+        - {node: sw2, key: '^vlan eth2 10$'}
+    - id: down_or_delete_link
+      severity: major
+      reason: "Mematikan atau menghapus interface/bridge"
+      pattern: '^ip\s+(?:-\S+\s+)*link\s+(?:set\s+(?:dev\s+)?\S+\s+.*\bdown\b|del(?:ete)?\b)'
+# Dokumentasi desain untuk diagram topologi di web UI: kondisi yang SEHARUSNYA,
+# bukan state runtime (jangan bocorkan fault). Kunci = endpoint link di .clab.yaml.
+design:
+  links:
+    "host-a:eth1 sw1:eth1": "access · VLAN 20"
+    "sw1:eth2 sw2:eth1": "trunk · VLAN 10, 20"
+    "sw2:eth2 sw3:eth1": "trunk · VLAN 10, 20"
+    "sw3:eth2 host-b:eth1": "access · VLAN 20"
+expert_baseline:
+  state_changes: 1
+  typical_duration_min: 8
+hints:
+  - {level: 1, penalty: 3, text: "Coba cek status trunk di semua switch"}
+  - {level: 2, penalty: 7, text: "Perhatikan VLAN yang di-allow di trunk {{faulty_switch}}"}

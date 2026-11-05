@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# Reset sebuah lab: destroy, deploy ulang, verifikasi sehat, lalu inject fault.
+# Usage: reset-lab <lab_dir> [argumen untuk inject.sh...]
+#
+# Dipanggil oleh labs/<id>/reset.sh (satu baris) dan oleh web UI (tombol
+# Deploy / Reset lab). Semua yang spesifik soal dibaca dari problem.yaml:
+#   lab_topology            file .clab.yaml
+#   fault_injection.script  script inject (default inject.sh)
+#   goal_state.verify_script script verify (default verify.sh)
+#
+# containerlab dipanggil langsung kalau sudah sudo-less (setuid + grup
+# clab_admins, lihat platform/setup-sudoless.sh). Kalau belum, lewat sudo.
+# Tanpa terminal (dipanggil web UI), sudo tidak boleh minta password (sudo -n).
+# Baris "==> " adalah tahap yang ditampilkan web UI.
+set -euo pipefail
+
+HERE=$(cd "$(dirname "$0")" && pwd)
+ROOT=$(dirname "$HERE")
+PY="$ROOT/.venv/bin/python"
+[[ -x $PY ]] || PY=python3
+
+if (( $# < 1 )); then
+  echo "Usage: reset-lab <lab_dir> [argumen inject...]" >&2
+  exit 1
+fi
+LAB_DIR=$(cd "$1" && pwd)
+shift
+cd "$LAB_DIR"
+
+# `sudo reset.sh` membuat .state/ milik root, sehingga lab-shell, watcher,
+# dan inject tidak bisa menulis ke sana. sudo dipanggil sendiri di bawah.
+if (( EUID == 0 )); then
+  echo "Jangan jalankan dengan sudo; jalankan sebagai user biasa (password sudo diminta kalau perlu)." >&2
+  exit 1
+fi
+
+[[ -f problem.yaml ]] || { echo "Tidak ada problem.yaml di $LAB_DIR" >&2; exit 1; }
+read -r LAB_ID TOPO INJECT VERIFY < <("$PY" - <<'EOF'
+import yaml
+p = yaml.safe_load(open("problem.yaml"))
+print(p["id"], p["lab_topology"],
+      (p.get("fault_injection") or {}).get("script", "inject.sh"),
+      (p.get("goal_state") or {}).get("verify_script", "verify.sh"))
+EOF
+)
+[[ -n ${VERIFY:-} ]] || { echo "problem.yaml tidak terbaca (butuh id dan lab_topology)." >&2; exit 1; }
+
+CLAB_BIN=$(command -v containerlab) || { echo "containerlab belum terinstall (lihat docs/instalasi.md)." >&2; exit 1; }
+if [[ -u $CLAB_BIN ]]; then
+  CLAB=("$CLAB_BIN")
+elif [[ -t 0 ]]; then
+  CLAB=(sudo "$CLAB_BIN")
+else
+  CLAB=(sudo -n "$CLAB_BIN")
+fi
+
+echo "==> destroy"
+"${CLAB[@]}" destroy -t "$TOPO" --cleanup 2>/dev/null || true
+rm -rf .state 2>/dev/null || sudo rm -rf .state
+# Dibuat sebelum deploy supaya bind mount events/ tetap milik user, bukan root.
+mkdir -p .state/events .state/tty
+date +%Y%m%d-%H%M%S > .state/session_id
+
+echo "==> deploy"
+"${CLAB[@]}" deploy -t "$TOPO"
+
+# Sanity check: sebelum fault, lab harus sehat (verify exit 0 = correctness 100).
+echo "==> verify"
+if ! "./$VERIFY" >/dev/null; then
+  echo "Lab tidak sehat sebelum inject. Cek hasil: ./$VERIFY" >&2
+  exit 1
+fi
+
+echo "==> inject"
+"./$INJECT" "$@"
+echo "Sesi $(cat .state/session_id) siap. Buka http://localhost:8000/labs/$LAB_ID"
+echo "(atau dari terminal: $HERE/lab-shell . <node>)"

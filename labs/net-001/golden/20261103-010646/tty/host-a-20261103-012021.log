@@ -1,0 +1,28 @@
+Script started on 2026-11-03 01:20:21+07:00 [COMMAND="docker exec -it -e LAB_NODE=host-a -e LAB_SESSION=20261103-010646 clab-net001-host-a bash --rcfile /etc/lab/rc -i" TERM="alacritty" TTY="/dev/pts/2" COLUMNS="140" LINES="40"]
+[?2004h[1;32mhost-a[0m:~# ppiinngg  --cc  22  --WW  11  1100..2200..00..22
+[?2004lPING 10.20.0.2 (10.20.0.2) 56(84) bytes of data.
+
+--- 10.20.0.2 ping statistics ---
+2 packets transmitted, 0 received, 100% packet loss, time 1059ms
+
+[?2004h[1;32mhost-a[0m:~# iipp  --bbrr  aaddddrr  sshhooww  eetthh11
+[?2004leth1@if18        UP             10.20.0.1/24 fe80::a8c1:abff:fecc:e2ed/64 
+[?2004h[1;32mhost-a[0m:~# iipp  nneeiigghh  sshhooww  ddeevv  eetthh11
+[?2004l10.20.0.2 FAILED 
+[?2004h[1;32mhost-a[0m:~# ppiinngg  --cc  33  --WW  11  1100..2200..00..22
+[?2004lPING 10.20.0.2 (10.20.0.2) 56(84) bytes of data.
+64 bytes from 10.20.0.2: icmp_seq=1 ttl=64 time=0.100 ms
+64 bytes from 10.20.0.2: icmp_seq=2 ttl=64 time=0.096 ms
+64 bytes from 10.20.0.2: icmp_seq=3 ttl=64 time=0.108 ms
+
+--- 10.20.0.2 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2030ms
+rtt min/avg/max/mdev = 0.096/0.101/0.108/0.005 ms
+[?2004h[1;32mhost-a[0m:~# exitexit
+[?2004lexit
+
+[1mWhat's next:[0m
+    Try Docker Debug for seamless, persistent debugging tools in any container or image → [36mdocker debug clab-net001-host-a[0m
+    Learn more at https://docs.docker.com/go/debug-cli/
+
+Script done on 2026-11-03 01:23:23+07:00 [COMMAND_EXIT_CODE="0"]

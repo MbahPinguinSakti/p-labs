@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Buka shell pemain di sebuah node lab, dengan perekaman.
+# Usage: lab-shell <problem_dir> <node>
+#
+# - Command terstruktur dicatat oleh hook di dalam node (lab-rc.sh).
+# - Transcript mentah (input + output + timing) dicatat oleh `script` di host,
+#   untuk dibaca evaluator di Fase 2.
+# Dipakai langsung dari terminal, atau oleh ttyd (platform/serve).
+set -euo pipefail
+
+if (( $# != 2 )); then
+  echo "Usage: lab-shell <problem_dir> <node>   (contoh: platform/lab-shell labs/net-001 sw2)" >&2
+  exit 1
+fi
+PROBLEM_DIR=$(cd "$1" && pwd)
+NODE=$2
+
+[[ $NODE =~ ^[a-z0-9-]+$ ]] || { echo "Nama node tidak valid: $NODE" >&2; exit 1; }
+
+TOPO=$(ls "$PROBLEM_DIR"/*.clab.yaml | head -1)
+LAB=$(sed -n 's/^name:[[:space:]]*//p' "$TOPO")
+CTR="clab-${LAB}-${NODE}"
+STATE="$PROBLEM_DIR/.state"
+
+if [[ "$(docker inspect -f '{{.State.Running}}' "$CTR" 2>/dev/null)" != "true" ]]; then
+  echo "Node '$NODE' tidak berjalan (container $CTR). Sudah ./reset.sh?" >&2
+  exit 1
+fi
+
+SESSION=$(cat "$STATE/session_id" 2>/dev/null || echo unknown)
+mkdir -p "$STATE/tty"
+stamp=$(date +%Y%m%d-%H%M%S)
+
+host_event() {
+  printf '{"ts":%s,"session":"%s","node":"%s","type":"%s"}\n' \
+    "${EPOCHREALTIME/,/.}" "$SESSION" "$NODE" "$1" >> "$STATE/events/host.jsonl"
+}
+
+host_event shell_open
+trap 'host_event shell_close' EXIT
+
+script -q -f \
+  -B "$STATE/tty/${NODE}-${stamp}.log" \
+  -T "$STATE/tty/${NODE}-${stamp}.timing" \
+  -m advanced \
+  -c "docker exec -it -e LAB_NODE=$NODE -e LAB_SESSION=$SESSION $CTR bash --rcfile /etc/lab/rc -i"

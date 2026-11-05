@@ -1,0 +1,74 @@
+Script started on 2026-10-20 00:19:48+07:00 [COMMAND="docker exec -it -e LAB_NODE=sw1 -e LAB_SESSION=20261019-234339 clab-net001-sw1 bash --rcfile /etc/lab/rc -i" TERM="xterm-256color" TTY="/dev/pts/4" COLUMNS="146" LINES="47"]
+[?2004h[1;32msw1[0m:~# bbrriiddggee  vvllaann  sshhooww
+[?2004lport              vlan-id  
+eth1              20
+eth2              10
+                  20
+br0               1 PVID Egress Untagged
+                  10
+[?2004h[1;32msw1[0m:~# [200~bridge vlan add dev eth2 vid 20[201~[7mbridge vlan add dev eth2 vid 20[27m[1;5C[C[C[C[C[C[C[Cbridge vlan add dev eth2 vid 20[D[D[D[D[D[D[D[1P1[1@1[C[C[C[C[C[C[C[C[C[C[C[C[1P0110
+[?2004l[?2004h[1;32msw1[0m:~# [Abridge vlan add dev eth1 vid 10[Ashow[K
+[?2004lport              vlan-id  
+eth1              10
+                  20
+eth2              10
+                  20
+br0               1 PVID Egress Untagged
+                  10
+[?2004h[1;32msw1[0m:~# ppiinngg  1100..2200..11[K22[K00..33[K22
+[?2004lping: connect: Network unreachable
+[?2004h[1;32msw1[0m:~# [Aping 10.20.0.2[K[K[K[K[K[K[K[K[K[K[K[K[K[Kppiinngg  117722..00..[K[K2200..2200..11[K33[K1133
+[?2004lping: connect: Network unreachable
+[?2004h[1;32msw1[0m:~# [Aping 172.20.20.13[K22
+[?2004lping: connect: Network unreachable
+[?2004h[1;32msw1[0m:~# [Aping 172.20.20.12[K11
+[?2004lping: connect: Network unreachable
+[?2004h[1;32msw1[0m:~# iipp  aa
+[?2004l1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host proto kernel_lo 
+       valid_lft forever preferred_lft forever
+2: br0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue state UP group default qlen 1000
+    link/ether aa:c1:ab:95:e7:90 brd ff:ff:ff:ff:ff:ff
+    inet6 fe80::a8c1:abff:fe95:e790/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+3: vlan10@br0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue state UP group default qlen 1000
+    link/ether aa:c1:ab:95:e7:90 brd ff:ff:ff:ff:ff:ff
+    inet 10.10.0.11/24 scope global vlan10
+       valid_lft forever preferred_lft forever
+    inet6 fe80::a8c1:abff:fe95:e790/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+128: eth2@if129: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue master br0 state UP group default 
+    link/ether aa:c1:ab:ed:d4:96 brd ff:ff:ff:ff:ff:ff link-netnsid 1
+    altname clab-o-86b164db1cbfedde
+    inet6 fe80::a8c1:abff:feed:d496/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+132: eth1@if133: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue master br0 state UP group default 
+    link/ether aa:c1:ab:95:e7:90 brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    altname clab-o-cc07a502bb1208b9
+    inet6 fe80::a8c1:abff:fe95:e790/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+[?2004h[1;32msw1[0m:~# [Aip a[Aping 172.20.20.11[D[D[D[D[C[C[C[C[1P11[1P11[1P11[1P11[1P11[1P11[1P11[1P11[1P11[C[K1[C[C1..11[1P110011..111[C[C10011..111[C[C10011..11[D[D[1P0.11
+[?2004lPING 10.10.0.11 (10.10.0.11) 56(84) bytes of data.
+64 bytes from 10.10.0.11: icmp_seq=1 ttl=64 time=0.028 ms
+^C
+--- 10.10.0.11 ping statistics ---
+1 packets transmitted, 1 received, 0% packet loss, time 0ms
+rtt min/avg/max/mdev = 0.028/0.028/0.028/0.000 ms
+[?2004h[1;32msw1[0m:~# [Aping 10.10.0.11[K22
+[?2004lPING 10.10.0.12 (10.10.0.12) 56(84) bytes of data.
+64 bytes from 10.10.0.12: icmp_seq=1 ttl=64 time=0.040 ms
+^C
+--- 10.10.0.12 ping statistics ---
+1 packets transmitted, 1 received, 0% packet loss, time 0ms
+rtt min/avg/max/mdev = 0.040/0.040/0.040/0.000 ms
+[?2004h[1;32msw1[0m:~# [1;5A[Aping 10.10.0.12[K33
+[?2004lPING 10.10.0.13 (10.10.0.13) 56(84) bytes of data.
+64 bytes from 10.10.0.13: icmp_seq=1 ttl=64 time=0.092 ms
+^C
+--- 10.10.0.13 ping statistics ---
+1 packets transmitted, 1 received, 0% packet loss, time 0ms
+rtt min/avg/max/mdev = 0.092/0.092/0.092/0.000 ms
+[?2004h[1;32msw1[0m:~# 

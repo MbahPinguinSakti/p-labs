@@ -1,0 +1,391 @@
+{
+  "problem": "net-001",
+  "session": "20261103-012346",
+  "weights": {
+    "correctness": 0.3,
+    "efficiency": 0.2,
+    "methodology": 0.4,
+    "safety": 0.1
+  },
+  "rule_based": {
+    "correctness": 100,
+    "verify": {
+      "problem": "net-001",
+      "correctness": 100,
+      "ping_ok": true,
+      "issues": []
+    },
+    "efficiency": {
+      "score": 100,
+      "state_changes": 1,
+      "baseline_changes": 1,
+      "extra_changes": 0,
+      "rework_changes": 0,
+      "change_events": [
+        "E1"
+      ]
+    },
+    "safety": {
+      "score": 100,
+      "violations": []
+    },
+    "hints": {
+      "levels_used": [],
+      "penalty": 0
+    },
+    "checkpoints": [
+      {
+        "id": "diagnose",
+        "type": "command_match",
+        "hit": false,
+        "event": null,
+        "ts": null
+      },
+      {
+        "id": "locate_fault",
+        "type": "command_match",
+        "hit": false,
+        "event": null,
+        "ts": null
+      },
+      {
+        "id": "apply_fix",
+        "type": "state_check",
+        "hit": true,
+        "event": "E1",
+        "ts": 1793643838.772241
+      },
+      {
+        "id": "verify_fix",
+        "type": "command_match",
+        "hit": true,
+        "event": "E2",
+        "ts": 1793643850.010372
+      }
+    ],
+    "process_gate": {
+      "factor": 0.0,
+      "required": [
+        "diagnose",
+        "locate_fault"
+      ],
+      "before": "apply_fix",
+      "met": [],
+      "missing": [
+        "diagnose",
+        "locate_fault"
+      ],
+      "applies_to": [
+        "correctness",
+        "efficiency"
+      ]
+    },
+    "checkpoints_rescored": [
+      "diagnose: rekaman sw2: `bridge vlan add dev eth2 vid 20` → dihitung ulang tidak tercapai",
+      "locate_fault: rekaman sw2: `bridge vlan add dev eth2 vid 20` → dihitung ulang tidak tercapai"
+    ]
+  },
+  "llm": {
+    "methodology": {
+      "band": "tanpa_metode",
+      "score": 5,
+      "rationale": "Pemain langsung mengeksekusi fix (`bridge vlan add dev eth2 vid 20` di sw2) di detik pertama sesi tanpa satu pun command diagnostik sebelumnya. Tidak ada `bridge vlan show`, `ping`, `ip link`, atau command lain yang dijalankan untuk mengumpulkan bukti. Checkpoint `diagnose` dan `locate_fault` tidak terpenuhi, dan process gate mengembalikan factor 0.0. Meski hasil akhirnya benar dan efisien secara state changes, proses yang dijalani tidak mencerminkan troubleshooting—ini adalah pengetahuan langsung tentang fault (atau tebakan yang sangat tepat) tanpa metodologi yang bisa dipertanggungjawabkan.",
+      "evidence": [
+        {
+          "event": "E1",
+          "note": "Fix (`bridge vlan add dev eth2 vid 20`) dijalankan 1 detik setelah sesi mulai, tanpa satu pun command diagnostik sebelumnya. Tidak ada bukti bahwa fault diidentifikasi melalui observasi."
+        },
+        {
+          "event": "E2",
+          "note": "Verifikasi dengan ping dilakukan dan berhasil, yang merupakan langkah yang benar—tetapi ini adalah satu-satunya langkah diagnostik dalam sesi, dan dilakukan setelah fix, bukan sebelum."
+        }
+      ]
+    },
+    "llm_checkpoints": [
+      {
+        "id": "reasoning",
+        "hit": false,
+        "rationale": "Tidak ada evidence dalam timeline yang menunjukkan pemain membentuk hipotesis tentang VLAN/trunk sebelum mengubah konfigurasi. Sesi hanya terdiri dari 2 event: langsung fix di E1, lalu verifikasi di E2. Tidak ada command diagnostik, tidak ada output yang menunjukkan pemain memeriksa status VLAN/trunk, dan tidak ada narasi atau langkah yang mengindikasikan reasoning eksplisit maupun implisit.",
+        "evidence": [
+          {
+            "event": "E1",
+            "note": "Ini adalah command pertama dalam sesi, langsung berupa fix. Tidak ada diagnostik atau reasoning yang tercatat sebelum ini."
+          }
+        ]
+      }
+    ],
+    "feedback": {
+      "summary": "Kamu berhasil memperbaiki fault dengan tepat dan efisien—satu perubahan state, nol pelanggaran safety, dan konektivitas pulih sepenuhnya. Tapi sesi ini tidak memiliki proses troubleshooting sama sekali: kamu langsung tahu jawabannya (atau menebak dengan sangat tepat) dan mengeksekusinya tanpa satu pun langkah diagnostik. Di skenario nyata dengan lebih banyak variabel, pendekatan ini berbahaya karena tidak bisa diulang jika tebakan meleset.",
+      "strengths": [
+        "Fix yang diterapkan di E1 (`bridge vlan add dev eth2 vid 20` di sw2) adalah solusi yang 100% benar dan minimal—tepat satu perubahan sesuai baseline expert.",
+        "Verifikasi end-to-end dilakukan dengan ping di E2, membuktikan konektivitas VLAN 20 pulih tanpa perlu alat tambahan."
+      ],
+      "improvements": [
+        "Mulai setiap sesi dengan diagnosis end-to-end dulu. Sebelum menyentuh config apa pun, jalankan `ping 10.20.0.2` dari host-a untuk mengonfirmasi fault, lalu `bridge vlan show` di sw1, sw2, sw3 untuk memetakan state VLAN saat ini. Tanpa langkah ini, kamu tidak bisa membedakan 'tahu' dari 'menebak'.",
+        "Isolasi fault secara sistematis sebelum fix. Setelah melihat output `bridge vlan show`, kamu seharusnya bisa menunjuk baris yang hilang—misalnya VLAN 20 tidak muncul di eth2 sw2—dan baru kemudian mengeksekusi fix. Ini yang dimaksud `locate_fault` dalam checkpoint yang tidak terpenuhi.",
+        "Jangan skip reasoning eksplisit. Bahkan jika kamu sudah tahu jawabannya, biasakan menuliskan (atau setidaknya menjalankan command yang membuktikan) hipotesis: 'trunk sw2 kemungkinan kehilangan VLAN 20, cek dulu sebelum ubah.' Ini membuat pendekatanmu bisa dipertanggungjawabkan dan diaudit.",
+        "Verifikasi management VLAN juga. Tiket menyebut agar trunk VLAN 10 dan management switch tidak terganggu. Setelah fix, idealnya kamu juga mengecek bahwa sw1, sw2, sw3 masih bisa saling ping via vlan10—meski dalam kasus ini fixnya memang tidak menyentuh VLAN 10."
+      ],
+      "technical_lessons": [
+        "Pada Linux bridge dengan `vlan_filtering`, allowed VLAN per-port dikonfigurasi secara eksplisit dengan `bridge vlan add/del`. `bridge vlan show` adalah command kunci untuk melihat state ini—keluarannya menampilkan setiap port beserta VLAN yang diizinkan, sehingga kamu bisa langsung melihat VLAN yang hilang tanpa perlu tebak-tebakan.",
+        "Process gate dalam penilaian ini mengukur apakah ada bukti diagnosis sebelum fix. Correctness dan efficiency kamu sempurna, tapi keduanya di-gate oleh proses—artinya skor final bisa dikurangi kalau sistem menilai proses sebagai syarat. Biasakan menjalankan command diagnostik yang terdokumentasi agar proses kamu bisa diverifikasi."
+      ],
+      "key_moments": [
+        {
+          "event": "E1",
+          "note": "Fix dijalankan di detik pertama tanpa diagnostik apapun. Ini adalah momen yang menentukan seluruh karakter sesi—benar secara hasil, tapi absen secara proses."
+        },
+        {
+          "event": "E2",
+          "note": "Verifikasi dengan ping adalah satu-satunya langkah observasi dalam sesi, dan dilakukan setelah fix. Hasilnya benar (0% packet loss), membuktikan fault teratasi—tapi urutan yang ideal adalah observasi → hipotesis → fix → verifikasi."
+        }
+      ],
+      "next_practice": "Di soal berikutnya, wajibkan dirimu menjalankan minimal 3 command diagnostik dan membaca outputnya sebelum mengubah satu pun konfigurasi—catat perangkat mana yang bermasalah dan baris output mana yang membuktikannya, baru kemudian eksekusi fix."
+    }
+  },
+  "llm_runs": [
+    {
+      "output": {
+        "methodology": {
+          "band": "tanpa_metode",
+          "score": 5,
+          "rationale": "Pemain langsung mengeksekusi fix di E1 tanpa satu pun command diagnostik sebelumnya. Tidak ada ping awal untuk mengonfirmasi gejala, tidak ada `bridge vlan show` untuk memetakan allowed VLAN di trunk, tidak ada investigasi di sw1 atau sw3, dan tidak ada hipotesis yang terdokumentasi dari urutan command. Satu-satunya hal yang dilakukan sebelum fix adalah… tidak ada. Meskipun fix-nya tepat sasaran dan efisien secara mekanis, itu tidak mencerminkan proses troubleshooting — pemain sudah mengetahui jawabannya dari luar sesi (atau menebak dengan sangat beruntung). Process gate deterministik mengonfirmasi ini: checkpoint `diagnose` dan `locate_fault` sama sekali tidak terpenuhi sebelum `apply_fix`.",
+          "evidence": [
+            {
+              "event": "E1",
+              "note": "Fix langsung dijalankan sebagai command pertama tanpa satu pun command diagnostik sebelumnya."
+            },
+            {
+              "event": "E2",
+              "note": "Verifikasi ping dilakukan setelah fix — ini satu-satunya langkah yang benar secara proses, tapi datang terlambat karena tidak ada diagnosis sebelumnya."
+            }
+          ]
+        },
+        "llm_checkpoints": [
+          {
+            "id": "reasoning",
+            "hit": false,
+            "rationale": "Tidak ada command diagnostik sama sekali sebelum fix di E1. Tidak ada output `bridge vlan show`, ping awal, atau command apapun yang menunjukkan pemain membangun hipotesis tentang VLAN/trunk. Pemain langsung melompat ke `bridge vlan add dev eth2 vid 20` di sw2 tanpa jejak reasoning yang bisa diamati.",
+            "evidence": [
+              {
+                "event": "E1",
+                "note": "Command pertama sekaligus satu-satunya sebelum verifikasi adalah fix itu sendiri — tidak ada bukti hipotesis yang terbentuk dari data yang dikumpulkan di sesi ini."
+              }
+            ]
+          }
+        ],
+        "feedback": {
+          "summary": "Kamu berhasil memperbaiki jaringan dengan fix yang benar dan efisien secara teknis — hanya 1 perubahan state, zero safety violation. Tapi sesi ini pada dasarnya tidak punya proses troubleshooting: command pertama sudah langsung fix, tanpa satu pun langkah diagnostik. Di lab ini kamu mungkin sudah tahu jawabannya dari luar, tapi kebiasaan ini berbahaya di produksi karena kamu tidak akan selalu tahu — dan fix yang tepat tapi tanpa diagnosis bisa menutupi masalah lain yang lebih dalam.",
+          "strengths": [
+            "Fix yang diterapkan di E1 (`bridge vlan add dev eth2 vid 20` di sw2 eth2) secara teknis 100% benar dan minimal — tepat satu perubahan state, sesuai baseline expert.",
+            "Verifikasi dilakukan langsung setelah fix (E2) dengan ping end-to-end dari host-a ke host-b, yang merupakan cara yang tepat untuk membuktikan layanan pulih."
+          ],
+          "improvements": [
+            "**Selalu mulai dengan diagnosis, bukan fix.** Sebelum menyentuh konfigurasi apapun, jalankan dulu `ping 10.20.0.2` dari host-a untuk mengonfirmasi gejala, lalu `bridge vlan show` di sw1, sw2, sw3 untuk memetakan VLAN yang diizinkan di setiap port trunk. Dari situ kamu akan melihat sendiri bahwa VLAN 20 hilang dari eth2 sw2 — dan fix menjadi kesimpulan logis, bukan tebakan.",
+            "**Bangun hipotesis dari bukti, bukan dari ingatan.** Bahkan jika kamu sudah curiga pada trunk sw2, dokumentasikan reasoning-nya lewat urutan command: cek trunk sw1↔sw2 (`bridge vlan show dev eth1` di sw1 dan `bridge vlan show dev eth1` di sw2), lalu trunk sw2↔sw3 (`bridge vlan show dev eth2` di sw2). Ini yang membedakan troubleshooting dari menghafal jawaban.",
+            "**Periksa kedua ujung trunk, bukan hanya satu switch.** Root cause di soal ini adalah VLAN 20 hilang dari eth2 sw2 (sisi sw2→sw3). Tanpa diagnosis, kamu tidak bisa tahu apakah masalahnya di sw1-sw2 atau sw2-sw3, atau bahkan di port access host-a/host-b. Pendekatan sistematis: bisect jalur host-a→sw1→sw2→sw3→host-b satu segmen per segmen.",
+            "**Verifikasi management VLAN juga.** Tiket minta kamu memastikan VLAN 10 (management) tidak rusak. Setelah fix, jalankan `ping 10.10.0.12` dari sw1 dan `ping 10.10.0.13` dari sw2 untuk mengonfirmasi tidak ada collateral damage — meskipun dalam kasus ini tidak ada, kebiasaan ini penting."
+          ],
+          "technical_lessons": [
+            "`bridge vlan show` adalah perintah kunci untuk debugging VLAN di Linux bridge dengan `vlan_filtering`. Output-nya menampilkan per-port allowed VLAN list lengkap dengan flag `PVID`, `Egress Untagged`, dan `trunk` — satu command ini sudah cukup untuk langsung menemukan VLAN yang hilang dari trunk port manapun.",
+            "Di Linux bridge, menghapus VLAN dari allowed list (`bridge vlan del`) pada satu port trunk tidak otomatis mempengaruhi port lain atau switch lain. Fault sangat terlokalisasi — ini yang membuat `bridge vlan show` per-switch sangat efektif untuk bisect masalah."
+          ],
+          "key_moments": [
+            {
+              "event": "E1",
+              "note": "Fix dijalankan sebagai command pertama tanpa diagnosis apapun. Ini adalah momen paling kritis yang mendefinisikan seluruh sesi — bukan karena fix-nya salah, tapi karena prosesnya tidak ada."
+            },
+            {
+              "event": "E2",
+              "note": "Verifikasi ping berhasil mengonfirmasi fix bekerja. Ini langkah yang benar, tapi harusnya didahului verifikasi diagnosis (misalnya `bridge vlan show` sebelum dan sesudah) agar bisa menjadi bukti yang lengkap."
+            }
+          ],
+          "next_practice": "Di soal berikutnya, terapkan aturan ini: jangan ketik command pertama yang mengubah state sampai kamu sudah menjalankan minimal 3 command diagnostik dan bisa menyebutkan secara eksplisit perangkat mana yang salah dan mengapa — tuliskan hipotesisnya sebagai komentar di terminal jika perlu (`# hipotesis: VLAN 20 hilang dari trunk sw2 eth2`)."
+        }
+      },
+      "meta": {
+        "provider": "9router",
+        "model": "claude-sonnet-4-6",
+        "base_url": "http://localhost:20128/v1",
+        "usage": {
+          "prompt_tokens": 6166,
+          "completion_tokens": 1905,
+          "total_tokens": 8071
+        },
+        "structured_output": true,
+        "elapsed_s": 38.4
+      },
+      "warnings": []
+    },
+    {
+      "output": {
+        "methodology": {
+          "band": "tanpa_metode",
+          "score": 5,
+          "rationale": "Pemain langsung mengeksekusi fix (`bridge vlan add dev eth2 vid 20` di sw2) di detik pertama sesi tanpa satu pun command diagnostik sebelumnya. Tidak ada `bridge vlan show`, `ping`, `ip link`, atau command lain yang dijalankan untuk mengumpulkan bukti. Checkpoint `diagnose` dan `locate_fault` tidak terpenuhi, dan process gate mengembalikan factor 0.0. Meski hasil akhirnya benar dan efisien secara state changes, proses yang dijalani tidak mencerminkan troubleshooting—ini adalah pengetahuan langsung tentang fault (atau tebakan yang sangat tepat) tanpa metodologi yang bisa dipertanggungjawabkan.",
+          "evidence": [
+            {
+              "event": "E1",
+              "note": "Fix (`bridge vlan add dev eth2 vid 20`) dijalankan 1 detik setelah sesi mulai, tanpa satu pun command diagnostik sebelumnya. Tidak ada bukti bahwa fault diidentifikasi melalui observasi."
+            },
+            {
+              "event": "E2",
+              "note": "Verifikasi dengan ping dilakukan dan berhasil, yang merupakan langkah yang benar—tetapi ini adalah satu-satunya langkah diagnostik dalam sesi, dan dilakukan setelah fix, bukan sebelum."
+            }
+          ]
+        },
+        "llm_checkpoints": [
+          {
+            "id": "reasoning",
+            "hit": false,
+            "rationale": "Tidak ada evidence dalam timeline yang menunjukkan pemain membentuk hipotesis tentang VLAN/trunk sebelum mengubah konfigurasi. Sesi hanya terdiri dari 2 event: langsung fix di E1, lalu verifikasi di E2. Tidak ada command diagnostik, tidak ada output yang menunjukkan pemain memeriksa status VLAN/trunk, dan tidak ada narasi atau langkah yang mengindikasikan reasoning eksplisit maupun implisit.",
+            "evidence": [
+              {
+                "event": "E1",
+                "note": "Ini adalah command pertama dalam sesi, langsung berupa fix. Tidak ada diagnostik atau reasoning yang tercatat sebelum ini."
+              }
+            ]
+          }
+        ],
+        "feedback": {
+          "summary": "Kamu berhasil memperbaiki fault dengan tepat dan efisien—satu perubahan state, nol pelanggaran safety, dan konektivitas pulih sepenuhnya. Tapi sesi ini tidak memiliki proses troubleshooting sama sekali: kamu langsung tahu jawabannya (atau menebak dengan sangat tepat) dan mengeksekusinya tanpa satu pun langkah diagnostik. Di skenario nyata dengan lebih banyak variabel, pendekatan ini berbahaya karena tidak bisa diulang jika tebakan meleset.",
+          "strengths": [
+            "Fix yang diterapkan di E1 (`bridge vlan add dev eth2 vid 20` di sw2) adalah solusi yang 100% benar dan minimal—tepat satu perubahan sesuai baseline expert.",
+            "Verifikasi end-to-end dilakukan dengan ping di E2, membuktikan konektivitas VLAN 20 pulih tanpa perlu alat tambahan."
+          ],
+          "improvements": [
+            "Mulai setiap sesi dengan diagnosis end-to-end dulu. Sebelum menyentuh config apa pun, jalankan `ping 10.20.0.2` dari host-a untuk mengonfirmasi fault, lalu `bridge vlan show` di sw1, sw2, sw3 untuk memetakan state VLAN saat ini. Tanpa langkah ini, kamu tidak bisa membedakan 'tahu' dari 'menebak'.",
+            "Isolasi fault secara sistematis sebelum fix. Setelah melihat output `bridge vlan show`, kamu seharusnya bisa menunjuk baris yang hilang—misalnya VLAN 20 tidak muncul di eth2 sw2—dan baru kemudian mengeksekusi fix. Ini yang dimaksud `locate_fault` dalam checkpoint yang tidak terpenuhi.",
+            "Jangan skip reasoning eksplisit. Bahkan jika kamu sudah tahu jawabannya, biasakan menuliskan (atau setidaknya menjalankan command yang membuktikan) hipotesis: 'trunk sw2 kemungkinan kehilangan VLAN 20, cek dulu sebelum ubah.' Ini membuat pendekatanmu bisa dipertanggungjawabkan dan diaudit.",
+            "Verifikasi management VLAN juga. Tiket menyebut agar trunk VLAN 10 dan management switch tidak terganggu. Setelah fix, idealnya kamu juga mengecek bahwa sw1, sw2, sw3 masih bisa saling ping via vlan10—meski dalam kasus ini fixnya memang tidak menyentuh VLAN 10."
+          ],
+          "technical_lessons": [
+            "Pada Linux bridge dengan `vlan_filtering`, allowed VLAN per-port dikonfigurasi secara eksplisit dengan `bridge vlan add/del`. `bridge vlan show` adalah command kunci untuk melihat state ini—keluarannya menampilkan setiap port beserta VLAN yang diizinkan, sehingga kamu bisa langsung melihat VLAN yang hilang tanpa perlu tebak-tebakan.",
+            "Process gate dalam penilaian ini mengukur apakah ada bukti diagnosis sebelum fix. Correctness dan efficiency kamu sempurna, tapi keduanya di-gate oleh proses—artinya skor final bisa dikurangi kalau sistem menilai proses sebagai syarat. Biasakan menjalankan command diagnostik yang terdokumentasi agar proses kamu bisa diverifikasi."
+          ],
+          "key_moments": [
+            {
+              "event": "E1",
+              "note": "Fix dijalankan di detik pertama tanpa diagnostik apapun. Ini adalah momen yang menentukan seluruh karakter sesi—benar secara hasil, tapi absen secara proses."
+            },
+            {
+              "event": "E2",
+              "note": "Verifikasi dengan ping adalah satu-satunya langkah observasi dalam sesi, dan dilakukan setelah fix. Hasilnya benar (0% packet loss), membuktikan fault teratasi—tapi urutan yang ideal adalah observasi → hipotesis → fix → verifikasi."
+            }
+          ],
+          "next_practice": "Di soal berikutnya, wajibkan dirimu menjalankan minimal 3 command diagnostik dan membaca outputnya sebelum mengubah satu pun konfigurasi—catat perangkat mana yang bermasalah dan baris output mana yang membuktikannya, baru kemudian eksekusi fix."
+        }
+      },
+      "meta": {
+        "provider": "9router",
+        "model": "claude-sonnet-4-6",
+        "base_url": "http://localhost:20128/v1",
+        "usage": {
+          "prompt_tokens": 6166,
+          "completion_tokens": 1817,
+          "total_tokens": 7983
+        },
+        "structured_output": true,
+        "elapsed_s": 36.9
+      },
+      "warnings": []
+    },
+    {
+      "output": {
+        "methodology": {
+          "band": "tanpa_metode",
+          "score": 5,
+          "rationale": "Pemain langsung menerapkan fix di E1 tanpa satu pun command diagnostik sebelumnya. Tidak ada ping dari host-a untuk membuktikan masalah, tidak ada `bridge vlan show` untuk memetakan kondisi trunk, tidak ada traversal topologi (sw1 → sw2 → sw3) untuk menemukan titik fault. Fix yang diterapkan kebetulan benar (persis fault yang disuntikkan), tetapi prosesnya tidak menunjukkan diagnosis sama sekali — tidak ada hipotesis yang terbentuk dari bukti, melainkan langsung menulis perintah perbaikan. Process gate otomatis pun mengonfirmasi ini: checkpoint `diagnose` dan `locate_fault` tidak terpenuhi, sehingga factor proses = 0.0.",
+          "evidence": [
+            {
+              "event": "E1",
+              "note": "Command pertama dan satu-satunya sebelum verifikasi adalah `bridge vlan add dev eth2 vid 20` di sw2 — langsung fix tanpa satu pun command diagnostik sebelumnya."
+            },
+            {
+              "event": "E2",
+              "note": "Verifikasi dengan ping dilakukan setelah fix, yang merupakan langkah yang benar, tetapi tidak ada verifikasi kondisi sebelum fix untuk membuktikan fault."
+            }
+          ]
+        },
+        "llm_checkpoints": [
+          {
+            "id": "reasoning",
+            "hit": false,
+            "rationale": "Tidak ada bukti hipotesis yang terbentuk sebelum E1. Pemain tidak menjalankan command diagnostik apapun, tidak menuliskan analisis, dan tidak melakukan investigasi trunk/VLAN sebelum langsung mengeksekusi fix. Fix yang benar bisa saja berasal dari pengetahuan soal sebelumnya atau sekadar tebakan, bukan dari proses reasoning yang teramati.",
+            "evidence": [
+              {
+                "event": "E1",
+                "note": "Command pertama adalah langsung fix `bridge vlan add dev eth2 vid 20` di sw2 — tidak ada command sebelumnya yang menunjukkan pembentukan hipotesis tentang VLAN/trunk."
+              }
+            ]
+          }
+        ],
+        "feedback": {
+          "summary": "Kamu berhasil memperbaiki konektivitas host-a ke host-b dengan fix yang tepat dan efisien (1 state change, tidak ada pelanggaran safety). Sayangnya, fix ini dilakukan tanpa diagnosis sama sekali — kamu langsung tahu jawabannya dan mengetikkannya. Di lingkungan nyata atau soal yang lebih kompleks, pendekatan ini tidak bisa diandalkan. Root cause sebenarnya adalah VLAN 20 terhapus dari allowed list trunk port eth2 di sw2, dan fix yang benar memang persis `bridge vlan add dev eth2 vid 20` di sw2.",
+          "strengths": [
+            "Fix yang diterapkan di E1 tepat sasaran: perangkat yang benar (sw2), port yang benar (eth2), VLAN yang benar (20), dan perintah yang benar (`bridge vlan add`). Tidak ada perubahan yang menyentuh perangkat atau port yang sehat.",
+            "Verifikasi dilakukan dengan ping end-to-end di E2, yang merupakan cara yang tepat untuk membuktikan layanan pulih."
+          ],
+          "improvements": [
+            "Lakukan diagnosis sebelum menyentuh konfigurasi. Mulailah dengan `ping 10.20.0.2` dari host-a untuk membuktikan fault, lalu `bridge vlan show` di sw1, sw2, dan sw3 untuk memetakan allowed VLAN di setiap port trunk. Dari situ kamu bisa melihat bahwa VLAN 20 hilang dari eth2 sw2 sebagai bukti konkret sebelum mengubah apapun.",
+            "Ikuti topologi secara berurutan. Soal ini punya jalur jelas: host-a → sw1 (eth1, access VLAN 20) → trunk sw1-sw2 → trunk sw2-sw3 → sw3 (eth1, access VLAN 20) → host-b. Periksa setiap segmen satu per satu — isolasi dulu di mana traffic VLAN 20 terputus, baru perbaiki.",
+            "Verifikasi kondisi awal sebelum fix. Jalankan `bridge vlan show` di sw2 sebelum menerapkan perubahan, sehingga kamu bisa membandingkan state sebelum dan sesudah, dan memastikan perubahan yang kamu buat benar-benar membuktikan fault yang ditemukan.",
+            "Jangan mengandalkan ingatan atau 'tebakan beruntung'. Di soal yang lebih kompleks, fault bisa ada di sw1, sw3, atau kombinasi beberapa perangkat. Tanpa diagnosis terarah, kamu tidak akan tahu harus mulai dari mana."
+          ],
+          "technical_lessons": [
+            "`bridge vlan show` adalah command utama untuk melihat VLAN filtering di Linux bridge. Output-nya menampilkan setiap port beserta VLAN yang diizinkan, termasuk flag `Egress Untagged` untuk port access dan `PVID` untuk port dengan PVID tertentu. Membiasakan diri membaca output ini akan membantu kamu menemukan port yang kehilangan VLAN dari allowed list.",
+            "Di Linux bridge dengan `vlan_filtering`, VLAN harus didaftarkan secara eksplisit di setiap port. Menghapus satu entri (`bridge vlan del`) langsung memutus traffic VLAN tersebut di port itu, bahkan jika port masih terhubung secara fisik. Inilah kenapa fault seperti ini sering terjadi setelah maintenance — satu perintah del yang salah target cukup untuk memutus konektivitas."
+          ],
+          "key_moments": [
+            {
+              "event": "E1",
+              "note": "Fix langsung tanpa diagnosis — ini titik paling kritis dalam sesi. Kamu melewati seluruh tahap investigasi dan langsung ke solusi. Fix-nya benar, tapi prosesnya tidak bisa diulang untuk fault yang tidak kamu ketahui jawabannya sebelumnya."
+            },
+            {
+              "event": "E2",
+              "note": "Ping end-to-end berhasil membuktikan layanan pulih. Ini langkah verifikasi yang tepat dan perlu dipertahankan sebagai kebiasaan — selalu buktikan fix dengan tes yang relevan bagi pengguna."
+            }
+          ],
+          "next_practice": "Di soal berikutnya, jadikan aturan untuk dirimu sendiri: tidak boleh mengubah konfigurasi sebelum menjalankan minimal dua command diagnostik yang outputnya kamu baca dan interpretasikan secara eksplisit. Tulis (atau pikirkan) hipotesismu sebelum mengetik perintah fix."
+        }
+      },
+      "meta": {
+        "provider": "9router",
+        "model": "claude-sonnet-4-6",
+        "base_url": "http://localhost:20128/v1",
+        "usage": {
+          "prompt_tokens": 6166,
+          "completion_tokens": 1853,
+          "total_tokens": 8019
+        },
+        "structured_output": true,
+        "elapsed_s": 37.4
+      },
+      "warnings": []
+    }
+  ],
+  "warnings": [],
+  "scores": {
+    "correctness": 100,
+    "efficiency": 100,
+    "methodology": 5,
+    "safety": 100
+  },
+  "credited": {
+    "correctness": 0.0,
+    "efficiency": 0.0,
+    "methodology": 5,
+    "safety": 100
+  },
+  "final_score": 12.0,
+  "methodology_spread": {
+    "scores": [
+      5,
+      5,
+      5
+    ],
+    "min": 5,
+    "max": 5,
+    "median": 5
+  }
+}

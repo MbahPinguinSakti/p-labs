@@ -1,0 +1,15 @@
+Script started on 2026-10-19 23:51:40+07:00 [COMMAND="docker exec -it -e LAB_NODE=sw1 -e LAB_SESSION=20261019-234339 clab-net001-sw1 bash --rcfile /etc/lab/rc -i" TERM="xterm-256color" TTY="/dev/pts/4" COLUMNS="146" LINES="47"]
+[?2004h[1;32msw1[0m:~# ssudud[K[K[Kbbrrddiigg[K[K[Kiiddggee  vvllaann[1;5D--vlanddvlan  vlan
+[?2004lport              vlan-id  
+eth1              20 PVID Egress Untagged
+                    state forwarding mcast_router 1 neigh_suppress off 
+eth2              10
+                    state forwarding mcast_router 1 neigh_suppress off 
+                  20
+                    state forwarding mcast_router 1 neigh_suppress off 
+br0               1 PVID Egress Untagged
+                    state forwarding mcast_router 1 neigh_suppress off 
+                  10
+                    state forwarding mcast_router 1 neigh_suppress off 
+[?2004h[1;32msw1[0m:~# ssuuddoo[K[K[K[Kbbrrddii[K[Kiiddggee  vvllaanndd  aadddd[D[D[D[D[1P add [C add[1Padd[1;5C[C[C[C[C  ddeevv  eetthh22--[K[K  [K11  vviidd  2200  ttaaggggeedd
+[?2004l[?2004h[1;32msw1[0m:~# 

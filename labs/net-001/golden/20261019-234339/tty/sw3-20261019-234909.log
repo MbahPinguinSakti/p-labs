@@ -1,0 +1,35 @@
+Script started on 2026-10-19 23:49:09+07:00 [COMMAND="docker exec -it -e LAB_NODE=sw3 -e LAB_SESSION=20261019-234339 clab-net001-sw3 bash --rcfile /etc/lab/rc -i" TERM="xterm-256color" TTY="/dev/pts/4" COLUMNS="146" LINES="47"]
+[?2004h[1;32msw3[0m:~# bbrrddii[K[Kiiddggee  00dd  [K[K[K--dd  vv;;aann[K[K[Kllaann
+[?2004lport              vlan-id  
+eth1              10
+                    state forwarding mcast_router 1 neigh_suppress off 
+                  20
+                    state forwarding mcast_router 1 neigh_suppress off 
+eth2              20 PVID Egress Untagged
+                    state forwarding mcast_router 1 neigh_suppress off 
+br0               1 PVID Egress Untagged
+                    state forwarding mcast_router 1 neigh_suppress off 
+                  10
+                    state forwarding mcast_router 1 neigh_suppress off 
+[?2004h[1;32msw3[0m:~# bbrrdd[Kiiddggee  ddee[K[Kaadddd  ddeevv  eetthh22  ttaaggggeedd[1;5D[1;5D[1;5D[1;5Dv[1@vl[1@la[C[1@ab[1@b [1@ [1;5C[C[C[C[1;5C[C[C[C[C[1;5C[C[C[C[C[C[1;5C[C[C[C[C[C[C[C
+[?2004lObject "vlab" is unknown, try "bridge help".
+[?2004h[1;32msw3[0m:~# [Abridge vlab add dev eth2 tagged[D[D[D[D[D[D[D[D[D[D[D[D[D[D[D[D[D[D[D[D[1Pn[1@n
+[?2004lDevice and VLAN ID are required arguments.
+[?2004h[1;32msw3[0m:~# [Abridge vlan add dev eth2 taggedv  vviidd  22--[K[K[K2200
+[?2004lDevice and VLAN ID are required arguments.
+[?2004h[1;32msw3[0m:~# [Abridge vlan add dev eth2 tagged vid20[D[D[D[D[D[D[1P vid20[1P vid20[1P vid20[1P vid20[1P vid20[1P vid20[1Pvid20[1;5C[C[C[C[C[C[C[1;5C  ttaaggggeedd
+[?2004lDevice and VLAN ID are required arguments.
+[?2004h[1;32msw3[0m:~# [Abridge vlan add dev eth2 vid20 tagged[D[D[D[D[D[D[D[D[D [1@ 
+[?2004l[?2004h[1;32msw3[0m:~# [Abridge vlan add dev eth2 vid 20 tagged[A[1P[C[C[C[C[C[C[C[C[C[Atagged vid20[A[K[A[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[Cb[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[A[C[C[C[C[C[C[C[C[C[C[C[C[C[C-d vlan[K[A
+[?2004lport              vlan-id  
+eth1              10
+                    state forwarding mcast_router 1 neigh_suppress off 
+                  20
+                    state forwarding mcast_router 1 neigh_suppress off 
+eth2              20
+                    state forwarding mcast_router 1 neigh_suppress off 
+br0               1 PVID Egress Untagged
+                    state forwarding mcast_router 1 neigh_suppress off 
+                  10
+                    state forwarding mcast_router 1 neigh_suppress off 
+[?2004h[1;32msw3[0m:~# 

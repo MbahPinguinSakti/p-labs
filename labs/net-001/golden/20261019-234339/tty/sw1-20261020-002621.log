@@ -1,0 +1,49 @@
+Script started on 2026-10-20 00:26:21+07:00 [COMMAND="docker exec -it -e LAB_NODE=sw1 -e LAB_SESSION=20261019-234339 clab-net001-sw1 bash --rcfile /etc/lab/rc -i" TERM="alacritty" TTY="/dev/pts/3" COLUMNS="192" LINES="47"]
+[?2004h[1;32msw1[0m:~# cclleeaarr
+[?2004l[H[J[?2004h[1;32msw1[0m:~# iipp  aa
+[?2004l1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host proto kernel_lo 
+       valid_lft forever preferred_lft forever
+2: br0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue state UP group default qlen 1000
+    link/ether aa:c1:ab:95:e7:90 brd ff:ff:ff:ff:ff:ff
+    inet6 fe80::a8c1:abff:fe95:e790/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+3: vlan10@br0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue state UP group default qlen 1000
+    link/ether aa:c1:ab:95:e7:90 brd ff:ff:ff:ff:ff:ff
+    inet 10.10.0.11/24 scope global vlan10
+       valid_lft forever preferred_lft forever
+    inet6 fe80::a8c1:abff:fe95:e790/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+128: eth2@if129: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue master br0 state UP group default 
+    link/ether aa:c1:ab:ed:d4:96 brd ff:ff:ff:ff:ff:ff link-netnsid 1
+    altname clab-o-86b164db1cbfedde
+    inet6 fe80::a8c1:abff:feed:d496/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+132: eth1@if133: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue master br0 state UP group default 
+    link/ether aa:c1:ab:95:e7:90 brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    altname clab-o-cc07a502bb1208b9
+    inet6 fe80::a8c1:abff:fe95:e790/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+[?2004h[1;32msw1[0m:~# cclleeaarr
+[?2004l[H[J[?2004h[1;32msw1[0m:~# bbrriiddggee  sshhooww  vvllaann
+[?2004lObject "show" is unknown, try "bridge help".
+[?2004h[1;32msw1[0m:~# [Abridge show vlan[K[K[K[K[K[K[K[K[Kvvllaann  ssjjooww[K[K[Koo[Khhwwoo[K[Kooww
+[?2004lport              vlan-id  
+eth1              10
+                  20
+eth2              10
+                  20
+br0               1 PVID Egress Untagged
+                  10
+[?2004h[1;32msw1[0m:~# ^C[?2004l[?2004h[?2004l
+[?2004h[1;32msw1[0m:~# eexxiitt
+[?2004lexit
+
+[1mWhat's next:[0m
+    Try Docker Debug for seamless, persistent debugging tools in any container or image → [36mdocker debug clab-net001-sw1[0m
+    Learn more at https://docs.docker.com/go/debug-cli/
+
+Script done on 2026-10-20 00:28:23+07:00 [COMMAND_EXIT_CODE="130"]

@@ -1,0 +1,2 @@
+Script started on 2026-10-19 23:47:21+07:00 [COMMAND="docker exec -it -e LAB_NODE=sw1 -e LAB_SESSION=20261019-234339 clab-net001-sw1 bash --rcfile /etc/lab/rc -i" TERM="xterm-256color" TTY="/dev/pts/4" COLUMNS="146" LINES="47"]
+[?2004h[1;32msw1[0m:~# 

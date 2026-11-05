@@ -1,0 +1,18 @@
+Script started on 2026-10-19 23:51:15+07:00 [COMMAND="docker exec -it -e LAB_NODE=host-a -e LAB_SESSION=20261019-234339 clab-net001-host-a bash --rcfile /etc/lab/rc -i" TERM="xterm-256color" TTY="/dev/pts/4" COLUMNS="146" LINES="47"]
+[?2004h[1;32mhost-a[0m:~# ppiinngg  1100..2200..00..
+[?2004l^C
+[?2004h[1;32mhost-a[0m:~# [Aping 10.20.0.11
+[?2004lPING 10.20.0.1 (10.20.0.1) 56(84) bytes of data.
+64 bytes from 10.20.0.1: icmp_seq=1 ttl=64 time=0.023 ms
+64 bytes from 10.20.0.1: icmp_seq=2 ttl=64 time=0.067 ms
+^C
+--- 10.20.0.1 ping statistics ---
+2 packets transmitted, 2 received, 0% packet loss, time 1019ms
+rtt min/avg/max/mdev = 0.023/0.045/0.067/0.022 ms
+[?2004h[1;32mhost-a[0m:~# [Aping 10.20.0.1[K22
+[?2004lPING 10.20.0.2 (10.20.0.2) 56(84) bytes of data.
+^C
+--- 10.20.0.2 ping statistics ---
+2 packets transmitted, 0 received, 100% packet loss, time 1060ms
+
+[?2004h[1;32mhost-a[0m:~# 

@@ -1,0 +1,24 @@
+H 0.000000 START_TIME 2026-10-19 23:44:09+07:00
+H 0.000000 TERM xterm-256color
+H 0.000000 TTY /dev/pts/4
+H 0.000000 COLUMNS 146
+H 0.000000 LINES 47
+H 0.000000 SHELL /bin/fish
+H 0.000000 COMMAND docker exec -it -e LAB_NODE=host-a -e LAB_SESSION=20261019-234339 clab-net001-host-a bash --rcfile /etc/lab/rc -i
+H 0.000000 TIMING_LOG /home/pinguinstar/Projects/lab/labs/net-001/.state/tty/host-a-20261019-234409.timing
+H 0.000000 OUTPUT_LOG /home/pinguinstar/Projects/lab/labs/net-001/.state/tty/host-a-20261019-234409.log
+H 0.000000 INPUT_LOG /home/pinguinstar/Projects/lab/labs/net-001/.state/tty/host-a-20261019-234409.log
+O 0.057714 29
+I 1.852108 1
+O 0.000375 1
+I 0.034302 1
+O 0.000509 1
+I 0.026362 1
+O 0.000400 1
+I 0.086981 1
+O 0.000386 1
+I 0.104632 1
+O 0.000284 11
+O 0.001053 430
+O 0.000011 313
+O 0.001765 29

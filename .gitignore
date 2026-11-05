@@ -1,0 +1,10 @@
+# Lingkungan lokal (dibuat ulang oleh ./install.sh)
+.venv/
+__pycache__/
+web/node_modules/
+web/dist/
+
+# State sesi dan data pemain per mesin (golden/ tetap ikut repo)
+labs/*/.state/
+labs/*/clab-*/
+labs/*/sessions/

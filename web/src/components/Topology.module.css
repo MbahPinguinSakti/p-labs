@@ -1,0 +1,58 @@
+.wrap {
+  position: relative;
+  flex: none;
+}
+.lines {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+.lines line {
+  stroke: var(--color-link);
+  stroke-width: 1.5;
+}
+.node {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-node);
+  border: 1.5px solid var(--color-accent);
+  background: var(--color-bg);
+  color: var(--color-accent);
+  font-size: 13px;
+  font-weight: 600;
+  transition:
+    background-color 180ms var(--ease-out),
+    transform 180ms var(--ease-out);
+}
+button.node:hover {
+  transform: scale(1.04);
+}
+.router {
+  border-color: var(--color-gold);
+  color: var(--color-gold);
+}
+.firewall {
+  border-color: var(--color-ember);
+  color: var(--color-ember);
+}
+.selected {
+  background: var(--color-accent-subtle);
+}
+.down {
+  opacity: 0.4;
+  border-style: dashed;
+}
+.linkLabel {
+  position: absolute;
+  transform: translateY(-50%);
+  color: var(--color-text-soft);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.horizontal .linkLabel {
+  transform: translateX(-50%);
+  font-size: 12px;
+}

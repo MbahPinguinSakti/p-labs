@@ -1,0 +1,1 @@
+{"ts":1793643850.010372,"session":"20261103-012346","node":"host-a","type":"command","data":"ping -c 3 -W 1 10.20.0.2","exit":0}

@@ -1,0 +1,41 @@
+Script started on 2026-10-20 00:16:22+07:00 [COMMAND="docker exec -it -e LAB_NODE=sw3 -e LAB_SESSION=20261019-234339 clab-net001-sw3 bash --rcfile /etc/lab/rc -i" TERM="xterm-256color" TTY="/dev/pts/4" COLUMNS="146" LINES="47"]
+[?2004h[1;32msw3[0m:~# iipp  bbrr--[K[K[K00[K--bbrr  lliinnkk''[K
+[?2004llo               UNKNOWN        00:00:00:00:00:00 <LOOPBACK,UP,LOWER_UP> 
+br0              UP             aa:c1:ab:6b:b2:49 <BROADCAST,MULTICAST,UP,LOWER_UP> 
+vlan10@br0       UP             aa:c1:ab:6b:b2:49 <BROADCAST,MULTICAST,UP,LOWER_UP> 
+eth1@if130       UP             aa:c1:ab:b7:d3:52 <BROADCAST,MULTICAST,UP,LOWER_UP> 
+eth2@if135       UP             aa:c1:ab:6b:b2:49 <BROADCAST,MULTICAST,UP,LOWER_UP> 
+[?2004h[1;32msw3[0m:~# [Aip -br link[Dbbkrrkiik^C[?2004l[?2004h[?2004l
+[?2004h[1;32msw3[0m:~# ^C[?2004l[?2004h[?2004l
+[?2004h[1;32msw3[0m:~# bbrrdd[Kiiddggee  lliinnkk
+[?2004l131: eth1@if130: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 master br0 state forwarding priority 32 cost 2 
+134: eth2@if135: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 master br0 state forwarding priority 32 cost 2 
+[?2004h[1;32msw3[0m:~# bbrriiddggee  vvllaann  sshhooppww[K[Kww
+[?2004lport              vlan-id  
+eth1              10
+                  20
+eth2              20
+br0               1 PVID Egress Untagged
+                  10
+[?2004h[1;32msw3[0m:~# [Abridge vlan show[K[K[K[K[K[K[K[K[K[K  ffddbb  bbrr  bbrr00[1;5D[1;5Ds[1@sh[1@ho[1@ow[1@w [1@ 
+[?2004l33:33:00:00:00:01 dev br0 self permanent
+01:00:5e:00:00:6a dev br0 self permanent
+33:33:00:00:00:6a dev br0 self permanent
+01:00:5e:00:00:01 dev br0 self permanent
+33:33:ff:6b:b2:49 dev br0 self permanent
+01:80:c2:00:00:21 dev br0 self permanent
+aa:c1:ab:6b:b2:49 dev br0 vlan 10 master br0 permanent
+aa:c1:ab:6b:b2:49 dev br0 vlan 1 master br0 permanent
+aa:c1:ab:95:e7:90 dev eth1 vlan 10 master br0 
+aa:c1:ab:b7:d3:52 dev eth1 vlan 20 master br0 permanent
+aa:c1:ab:b7:d3:52 dev eth1 vlan 10 master br0 permanent
+aa:c1:ab:b7:d3:52 dev eth1 master br0 permanent
+33:33:00:00:00:01 dev eth1 self permanent
+01:00:5e:00:00:01 dev eth1 self permanent
+33:33:ff:b7:d3:52 dev eth1 self permanent
+aa:c1:ab:6b:b2:49 dev eth2 vlan 20 master br0 permanent
+aa:c1:ab:6b:b2:49 dev eth2 master br0 permanent
+33:33:00:00:00:01 dev eth2 self permanent
+01:00:5e:00:00:01 dev eth2 self permanent
+33:33:ff:6b:b2:49 dev eth2 self permanent
+[?2004h[1;32msw3[0m:~# 

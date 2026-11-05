@@ -1,0 +1,2 @@
+{"ts":1793643666.373969,"session":"20261103-010646","node":"sw1","type":"command","data":"bridge vlan show","exit":0}
+{"ts":1793643688.473318,"session":"20261103-010646","node":"sw1","type":"command","data":"ping -c 2 -W 1 10.10.0.13","exit":0}

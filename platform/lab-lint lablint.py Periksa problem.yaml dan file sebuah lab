@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# lab-lint lablint.py Periksa problem.yaml dan file sebuah lab. Usage: lihat 
+HERE=$(cd "$(dirname "$0")" && pwd)
+PY="$(dirname "$HERE")/.venv/bin/python"
+[[ -x $PY ]] || PY=python3
+exec "$PY" "$HERE/" "$@"

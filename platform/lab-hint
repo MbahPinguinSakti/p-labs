@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+"""Minta hint untuk sesi yang sedang berjalan.
+
+Usage: lab-hint <problem_dir> [level]
+
+Tanpa level: hint level berikutnya yang belum dipakai. Level harus berurutan
+(level 2 baru bisa setelah level 1). Setiap permintaan dicatat sebagai event
+`hint` di .state/events/host.jsonl, sehingga penaltinya masuk ke skor akhir
+dan evaluator tahu kapan pemain memakai hint. Melihat ulang hint yang sudah
+dibuka tidak menambah penalti (penalti dihitung sekali per level).
+Logikanya ada di hints.py (dipakai juga oleh web UI).
+"""
+
+if __name__ == "__main__":
+    import _venv  # noqa: E402  (Python venv, lihat _venv.py)
+    _venv.ensure()
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from checkpoints import Lab  # noqa: E402
+from hints import HintError, open_hint  # noqa: E402
+
+
+def main():
+    if len(sys.argv) not in (2, 3):
+        sys.exit("Usage: lab-hint <problem_dir> [level]")
+    lab = Lab(sys.argv[1])
+    try:
+        hint, new = open_hint(lab, int(sys.argv[2]) if len(sys.argv) == 3 else None)
+    except HintError as error:
+        sys.exit(str(error))
+    note = f"penalti -{hint.get('penalty', 0)} poin" if new else "sudah pernah dibuka, tanpa penalti tambahan"
+    print(f"Hint level {hint['level']} ({note}):\n  {hint['text']}")
+
+
+if __name__ == "__main__":
+    main()

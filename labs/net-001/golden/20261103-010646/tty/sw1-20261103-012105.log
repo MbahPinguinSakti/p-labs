@@ -1,0 +1,24 @@
+Script started on 2026-11-03 01:21:05+07:00 [COMMAND="docker exec -it -e LAB_NODE=sw1 -e LAB_SESSION=20261103-010646 clab-net001-sw1 bash --rcfile /etc/lab/rc -i" TERM="alacritty" TTY="/dev/pts/4" COLUMNS="140" LINES="40"]
+[?2004h[1;32msw1[0m:~# bbrriiddggee  vvllaann  sshhooww
+[?2004lport              vlan-id  
+eth1              20 PVID Egress Untagged
+eth2              10
+                  20
+br0               1 PVID Egress Untagged
+                  10
+[?2004h[1;32msw1[0m:~# ppiinngg  --cc  22  --WW  11  1100..1100..00..1133
+[?2004lPING 10.10.0.13 (10.10.0.13) 56(84) bytes of data.
+64 bytes from 10.10.0.13: icmp_seq=1 ttl=64 time=0.083 ms
+64 bytes from 10.10.0.13: icmp_seq=2 ttl=64 time=0.114 ms
+
+--- 10.10.0.13 ping statistics ---
+2 packets transmitted, 2 received, 0% packet loss, time 1046ms
+rtt min/avg/max/mdev = 0.083/0.098/0.114/0.015 ms
+[?2004h[1;32msw1[0m:~# exitexit
+[?2004lexit
+
+[1mWhat's next:[0m
+    Try Docker Debug for seamless, persistent debugging tools in any container or image → [36mdocker debug clab-net001-sw1[0m
+    Learn more at https://docs.docker.com/go/debug-cli/
+
+Script done on 2026-11-03 01:23:23+07:00 [COMMAND_EXIT_CODE="0"]

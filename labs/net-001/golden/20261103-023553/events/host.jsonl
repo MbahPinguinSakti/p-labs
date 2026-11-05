@@ -1,0 +1,7 @@
+{"ts":1793648169.767484,"session":"20261103-023553","node":"host-a","type":"shell_open"}
+{"ts":1793648197.934867,"session":"20261103-023553","node":"sw2","type":"shell_open"}
+{"ts": 1793648238.751988, "session": "20261103-023553", "node": "host", "type": "hint", "level": 1}
+{"ts":1793648258.781588,"session":"20261103-023553","node":"sw1","type":"shell_open"}
+{"ts":1793648333.268308,"session":"20261103-023553","node":"host-a","type":"shell_close"}
+{"ts":1793648333.295718,"session":"20261103-023553","node":"sw2","type":"shell_close"}
+{"ts":1793648333.332087,"session":"20261103-023553","node":"sw1","type":"shell_close"}

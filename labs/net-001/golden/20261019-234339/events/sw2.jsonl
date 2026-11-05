@@ -1,0 +1,44 @@
+{"ts":1792428262.025432,"session":"20261019-234339","node":"sw2","type":"command","data":"ip a","exit":0}
+{"ts":1792428280.760666,"session":"20261019-234339","node":"sw2","type":"command","data":"bridge -d vlan","exit":0}
+{"ts":1792428497.098126,"session":"20261019-234339","node":"sw2","type":"command","data":"ip a","exit":0}
+{"ts":1792428545.089954,"session":"20261019-234339","node":"sw2","type":"command","data":"bridge -d vlan ","exit":0}
+{"ts":1792428646.441323,"session":"20261019-234339","node":"sw2","type":"command","data":"bridge -d vlan","exit":0}
+{"ts":1792428655.914104,"session":"20261019-234339","node":"sw2","type":"command","data":"ping 10.20.0.2","exit":2}
+{"ts":1792428658.931820,"session":"20261019-234339","node":"sw2","type":"command","data":"ip a","exit":0}
+{"ts":1792428787.170704,"session":"20261019-234339","node":"sw2","type":"command","data":"bridge -d vlan","exit":0}
+{"ts":1792428820.410901,"session":"20261019-234339","node":"sw2","type":"command","data":"ping 10.20.0.1","exit":2}
+{"ts":1792428822.962518,"session":"20261019-234339","node":"sw2","type":"command","data":"ping 10.20.0.2","exit":2}
+{"ts":1792428889.027045,"session":"20261019-234339","node":"sw2","type":"command","data":"ip a","exit":0}
+{"ts":1792428949.283681,"session":"20261019-234339","node":"sw2","type":"command","data":"bridge -d vlan ","exit":0}
+{"ts":1792429224.092848,"session":"20261019-234339","node":"sw2","type":"command","data":"ip a","exit":0}
+{"ts":1792429234.012290,"session":"20261019-234339","node":"sw2","type":"command","data":"brigde -d vlan","exit":127}
+{"ts":1792429238.083544,"session":"20261019-234339","node":"sw2","type":"command","data":"bridde -d vlan","exit":127}
+{"ts":1792429241.229448,"session":"20261019-234339","node":"sw2","type":"command","data":"bridge -d vlan","exit":0}
+{"ts":1792429266.406401,"session":"20261019-234339","node":"sw2","type":"command","data":"ip a","exit":0}
+{"ts":1792429305.397871,"session":"20261019-234339","node":"sw2","type":"command","data":"bridge add dev vlan10 vid 10 tagged","exit":255}
+{"ts":1792429311.205594,"session":"20261019-234339","node":"sw2","type":"command","data":"bridge vlan add dev vlan10 vid 10 tagged","exit":255}
+{"ts":1792429635.538280,"session":"20261019-234339","node":"sw2","type":"command","data":"clear","exit":0}
+{"ts":1792429636.461792,"session":"20261019-234339","node":"sw2","type":"command","data":"ip -br addr","exit":0}
+{"ts":1792429668.304164,"session":"20261019-234339","node":"sw2","type":"command","data":"bridge vlan show","exit":0}
+{"ts":1792429711.945862,"session":"20261019-234339","node":"sw2","type":"command","data":"bridge fdb show","exit":0}
+{"ts":1792429727.976395,"session":"20261019-234339","node":"sw2","type":"command","data":"bridge -s vlan show","exit":0}
+{"ts":1792429754.079442,"session":"20261019-234339","node":"sw2","type":"command","data":"clear","exit":0}
+{"ts":1792429761.410203,"session":"20261019-234339","node":"sw2","type":"command","data":"ip br link","exit":1}
+{"ts":1792429779.178105,"session":"20261019-234339","node":"sw2","type":"command","data":"ip -br link","exit":0}
+{"ts":1792429788.881988,"session":"20261019-234339","node":"sw2","type":"command","data":"ip -br addr","exit":0}
+{"ts":1792429799.591996,"session":"20261019-234339","node":"sw2","type":"command","data":"brigde link","exit":127}
+{"ts":1792429803.761352,"session":"20261019-234339","node":"sw2","type":"command","data":"bridge link","exit":0}
+{"ts":1792429818.953561,"session":"20261019-234339","node":"sw2","type":"command","data":"bridge vlan show","exit":0}
+{"ts":1792430021.387528,"session":"20261019-234339","node":"sw2","type":"command","data":"ip -br link","exit":0}
+{"ts":1792430045.026875,"session":"20261019-234339","node":"sw2","type":"command","data":"bridge fdb show br br0","exit":0}
+{"ts":1792430323.633604,"session":"20261019-234339","node":"sw2","type":"command","data":"bridge vlan add dev eth2 vid 20","exit":0}
+{"ts":1792430328.634088,"session":"20261019-234339","node":"sw2","type":"command","data":"ping 10.20.0.2","exit":2}
+{"ts":1792430359.170012,"session":"20261019-234339","node":"sw2","type":"command","data":"br vlan show","exit":127}
+{"ts":1792430363.665695,"session":"20261019-234339","node":"sw2","type":"command","data":"bridge vlan show","exit":0}
+{"ts":1792430723.265079,"session":"20261019-234339","node":"sw2","type":"command","data":"clear","exit":0}
+{"ts":1792430723.905291,"session":"20261019-234339","node":"sw2","type":"command","data":"ls","exit":0}
+{"ts":1792430725.217154,"session":"20261019-234339","node":"sw2","type":"command","data":"clear","exit":0}
+{"ts":1792430732.650427,"session":"20261019-234339","node":"sw2","type":"command","data":"ip a","exit":0}
+{"ts":1792430740.273720,"session":"20261019-234339","node":"sw2","type":"command","data":"bridge show vlan","exit":255}
+{"ts":1792430747.010450,"session":"20261019-234339","node":"sw2","type":"command","data":"bridge vlan show","exit":0}
+{"ts":1792431327.341073,"session":"20261019-234339","node":"sw2","type":"command","data":"bridge vlan show","exit":0}

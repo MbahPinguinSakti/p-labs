@@ -1,0 +1,156 @@
+Script started on 2026-10-20 00:00:21+07:00 [COMMAND="docker exec -it -e LAB_NODE=sw2 -e LAB_SESSION=20261019-234339 clab-net001-sw2 bash --rcfile /etc/lab/rc -i" TERM="xterm-256color" TTY="/dev/pts/4" COLUMNS="146" LINES="47"]
+[?2004h[1;32msw2[0m:~# iipp  aa
+[?2004l1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host proto kernel_lo 
+       valid_lft forever preferred_lft forever
+2: br0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue state UP group default qlen 1000
+    link/ether aa:c1:ab:0c:1e:d0 brd ff:ff:ff:ff:ff:ff
+    inet6 fe80::a8c1:abff:fe0c:1ed0/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+3: vlan10@br0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue state UP group default qlen 1000
+    link/ether aa:c1:ab:0c:1e:d0 brd ff:ff:ff:ff:ff:ff
+    inet 10.10.0.12/24 scope global vlan10
+       valid_lft forever preferred_lft forever
+    inet6 fe80::a8c1:abff:fe0c:1ed0/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+129: eth1@if128: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue master br0 state UP group default 
+    link/ether aa:c1:ab:0c:1e:d0 brd ff:ff:ff:ff:ff:ff link-netnsid 2
+    altname clab-o-8a7353bb4e7fb4cd
+    inet6 fe80::a8c1:abff:fe0c:1ed0/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+130: eth2@if131: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue master br0 state UP group default 
+    link/ether aa:c1:ab:2f:4f:b4 brd ff:ff:ff:ff:ff:ff link-netnsid 1
+    altname clab-o-8532426a9c265fe9
+    inet6 fe80::a8c1:abff:fe2f:4fb4/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+[?2004h[1;32msw2[0m:~# bbrriiggddee  ----dd  vvllaann[1;5D[D[D[1P
+[?2004lbash: brigde: command not found
+[?2004h[1;32msw2[0m:~# [Abrigde -d vlan[1;5D[1;5D[D[D[D[D[1P[C[Cd[1@d
+[?2004lbash: bridde: command not found
+[?2004h[1;32msw2[0m:~# [Abridde -d vlan[D[D[D[D[D[D[D[D[D[1Pf[1@f[1Pg[1@g
+[?2004lport              vlan-id  
+eth1              10
+                    state forwarding mcast_router 1 neigh_suppress off 
+                  20
+                    state forwarding mcast_router 1 neigh_suppress off 
+eth2              10
+                    state forwarding mcast_router 1 neigh_suppress off 
+br0               1 PVID Egress Untagged
+                    state forwarding mcast_router 1 neigh_suppress off 
+                  10
+                    state forwarding mcast_router 1 neigh_suppress off 
+[?2004h[1;32msw2[0m:~# iipp  aa
+[?2004l1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host proto kernel_lo 
+       valid_lft forever preferred_lft forever
+2: br0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue state UP group default qlen 1000
+    link/ether aa:c1:ab:0c:1e:d0 brd ff:ff:ff:ff:ff:ff
+    inet6 fe80::a8c1:abff:fe0c:1ed0/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+3: vlan10@br0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue state UP group default qlen 1000
+    link/ether aa:c1:ab:0c:1e:d0 brd ff:ff:ff:ff:ff:ff
+    inet 10.10.0.12/24 scope global vlan10
+       valid_lft forever preferred_lft forever
+    inet6 fe80::a8c1:abff:fe0c:1ed0/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+129: eth1@if128: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue master br0 state UP group default 
+    link/ether aa:c1:ab:0c:1e:d0 brd ff:ff:ff:ff:ff:ff link-netnsid 2
+    altname clab-o-8a7353bb4e7fb4cd
+    inet6 fe80::a8c1:abff:fe0c:1ed0/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+130: eth2@if131: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue master br0 state UP group default 
+    link/ether aa:c1:ab:2f:4f:b4 brd ff:ff:ff:ff:ff:ff link-netnsid 1
+    altname clab-o-8532426a9c265fe9
+    inet6 fe80::a8c1:abff:fe2f:4fb4/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+[?2004h[1;32msw2[0m:~# [Aip a[Abridge -d vlan[B[C[C[C[C[C[C[Cip a[K[K[K[K[Kiipp[K[Kdd[Kbbrriiddggee  aadddddd[K  ddeevv  vvllaann1100  vviidd  1100  ttaaggggeedd
+[?2004lObject "add" is unknown, try "bridge help".
+[?2004h[1;32msw2[0m:~# [Abridge add dev vlan10 vid 10 tagged[1;5D[1;5D[1;5D[1;5D[1;5D[1;5D[1;5D[1;5D[1;5D[1;5D[1;5C[C[C[C[C[C[C[1;5C[C[C[C[C[1;5Dv[1@vl[1@la[C[1@a [1@ [1Pn[1@n [1@ 
+[?2004lRTNETLINK answers: Not supported
+[?2004h[1;32msw2[0m:~# [Abridge vlan add dev vlan10 vid 10 tagged[B[C[C[C[C[C[C[C[K[Abridge vlan add dev vlan10 vid 10 tagged[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[K[1;32msw2[0m:~# [K[1;32msw2[0m:~# cclleeaarr
+[?2004l[H[J[?2004h[1;32msw2[0m:~# [200~ip -br addr[201~[7mip -br addr[27m[C[C[C[C[C[C[Cip -br addr
+[?2004llo               UNKNOWN        127.0.0.1/8 ::1/128 
+br0              UP             fe80::a8c1:abff:fe0c:1ed0/64 
+vlan10@br0       UP             10.10.0.12/24 fe80::a8c1:abff:fe0c:1ed0/64 
+eth1@if128       UP             fe80::a8c1:abff:fe0c:1ed0/64 
+eth2@if131       UP             fe80::a8c1:abff:fe2f:4fb4/64 
+[?2004h[1;32msw2[0m:~# bbrriiddggee  vvllaann  ssoo[Khhooww
+[?2004lport              vlan-id  
+eth1              10
+                  20
+eth2              10
+br0               1 PVID Egress Untagged
+                  10
+[?2004h[1;32msw2[0m:~# bbrriiddggee  dd[Kffddbb  sshhppww[K[Kooww
+[?2004l33:33:00:00:00:01 dev br0 self permanent
+01:00:5e:00:00:6a dev br0 self permanent
+33:33:00:00:00:6a dev br0 self permanent
+01:00:5e:00:00:01 dev br0 self permanent
+33:33:ff:0c:1e:d0 dev br0 self permanent
+01:80:c2:00:00:21 dev br0 self permanent
+aa:c1:ab:0c:1e:d0 dev br0 vlan 1 master br0 permanent
+33:33:00:00:00:01 dev vlan10 self permanent
+01:00:5e:00:00:01 dev vlan10 self permanent
+33:33:ff:0c:1e:d0 dev vlan10 self permanent
+aa:c1:ab:0c:1e:d0 dev eth1 vlan 20 master br0 permanent
+aa:c1:ab:0c:1e:d0 dev eth1 vlan 10 master br0 permanent
+aa:c1:ab:0c:1e:d0 dev eth1 master br0 permanent
+33:33:00:00:00:01 dev eth1 self permanent
+01:00:5e:00:00:01 dev eth1 self permanent
+33:33:ff:0c:1e:d0 dev eth1 self permanent
+aa:c1:ab:2f:4f:b4 dev eth2 vlan 10 master br0 permanent
+aa:c1:ab:2f:4f:b4 dev eth2 master br0 permanent
+33:33:00:00:00:01 dev eth2 self permanent
+01:00:5e:00:00:01 dev eth2 self permanent
+33:33:ff:2f:4f:b4 dev eth2 self permanent
+[?2004h[1;32msw2[0m:~# bbrriiddggee  --ss  vv;;aann  ss[K[K[K[K[Kllssaa[K[Kaann  sshhooww
+[?2004lport              vlan-id
+br0               1 PVID Egress Untagged
+                    RX: 0 bytes 0 packets
+                    TX: 0 bytes 0 packets
+                  10
+                    RX: 0 bytes 0 packets
+                    TX: 0 bytes 0 packets
+eth1              10
+                    RX: 0 bytes 0 packets
+                    TX: 0 bytes 0 packets
+                  20
+                    RX: 0 bytes 0 packets
+                    TX: 0 bytes 0 packets
+eth2              10
+                    RX: 0 bytes 0 packets
+                    TX: 0 bytes 0 packets
+[?2004h[1;32msw2[0m:~# cclleeaarr
+[?2004l[H[J[?2004h[1;32msw2[0m:~# ii[[  [K[Kpp  bbrr  --[K[K[D[D[C[C[C[C  lliinnll[Kkk
+[?2004lObject "br" is unknown, try "ip help".
+[?2004h[1;32msw2[0m:~# iipp  --bbrr  lliinnkk
+[?2004llo               UNKNOWN        00:00:00:00:00:00 <LOOPBACK,UP,LOWER_UP> 
+br0              UP             aa:c1:ab:0c:1e:d0 <BROADCAST,MULTICAST,UP,LOWER_UP> 
+vlan10@br0       UP             aa:c1:ab:0c:1e:d0 <BROADCAST,MULTICAST,UP,LOWER_UP> 
+eth1@if128       UP             aa:c1:ab:0c:1e:d0 <BROADCAST,MULTICAST,UP,LOWER_UP> 
+eth2@if131       UP             aa:c1:ab:2f:4f:b4 <BROADCAST,MULTICAST,UP,LOWER_UP> 
+[?2004h[1;32msw2[0m:~# iipp  --bbrr  aaddrr[Kddrr
+[?2004llo               UNKNOWN        127.0.0.1/8 ::1/128 
+br0              UP             fe80::a8c1:abff:fe0c:1ed0/64 
+vlan10@br0       UP             10.10.0.12/24 fe80::a8c1:abff:fe0c:1ed0/64 
+eth1@if128       UP             fe80::a8c1:abff:fe0c:1ed0/64 
+eth2@if131       UP             fe80::a8c1:abff:fe2f:4fb4/64 
+[?2004h[1;32msw2[0m:~# bbrriiggddee  lliinnkk
+[?2004lbash: brigde: command not found
+[?2004h[1;32msw2[0m:~# [Abrigde link[D[D[D[D[D[D[D[1P[C[Cg[1@g
+[?2004l129: eth1@if128: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 master br0 state forwarding priority 32 cost 2 
+130: eth2@if131: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 master br0 state forwarding priority 32 cost 2 
+[?2004h[1;32msw2[0m:~# [Abridge link[D[C[C[K[K[K[Kvvllaann  sshhooww
+[?2004lport              vlan-id  
+eth1              10
+                  20
+eth2              10
+br0               1 PVID Egress Untagged
+                  10
+[?2004h[1;32msw2[0m:~# 

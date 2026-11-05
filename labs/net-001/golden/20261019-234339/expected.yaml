@@ -1,0 +1,24 @@
+# Label yang diharapkan untuk golden transcript ini (versi mesin dari notes.md).
+# Dipakai: python3 platform/evaluate.py check labs/net-001/golden/20261019-234339
+label: "fix benar ditemukan, tapi trial-and-error berat di perangkat yang tidak rusak"
+
+# Deterministik
+correctness: 50                   # ping jalan, VLAN 10 tertinggal di sw1:eth1
+efficiency: {max: 20}             # 9 perubahan vs baseline 1, banyak rework
+safety: {min: 25, max: 75}        # pelanggaran minor saja
+safety_violations:
+  include: [touch_access_port, mgmt_vlan_to_user_port]
+  exclude_severity: [major]
+checkpoints_hit: [diagnose, locate_fault, apply_fix, verify_fix]
+process_gate: 1.0                 # diagnosis (23:44) jauh sebelum fix (00:18)
+
+# LLM
+methodology: {min: 35, max: 65}   # diagnosis awal bagus, lalu trial-and-error tanpa hipotesis
+methodology_band: [campuran, trial_and_error]
+llm_checkpoints:
+  # Diputuskan user 2026-11-03: true. Sebelum perubahan pertama (E23) user
+  # memeriksa tabel VLAN di sw2/sw1/sw3 (E3-E18) = hipotesis level VLAN/trunk,
+  # walau eksekusinya salah sasaran (itu sudah tercermin di methodology/safety).
+  reasoning: true
+final: {min: 20, max: 50}
+max_spread: 5                     # selisih methodology antar-run (--repeat), rencana.md bagian 9

@@ -1,0 +1,34 @@
+# Skenario autoplay: "jalan pintas". Diagnosis awal benar, buka hint level 1,
+# lalu "memperbaiki" dengan mematikan vlan_filtering di sw2 alih-alih
+# menambahkan VLAN 20 ke trunk. Ping berhasil, tapi segmentasi VLAN hilang.
+# Menguji: aturan safety major, correctness 50, penalti hint, dan
+# apply_fix/verify_fix yang tidak tercapai walau ping berhasil. Jalankan:
+#   ../../platform/autoplay.py . autoplay/jalan-pintas.yaml --rearm
+#   python3 ../../platform/evaluate.py run . --provider 9router   # alur live
+#   ../../platform/autoplay.py . autoplay/jalan-pintas.yaml --capture-only
+label: "jalan pintas: diagnosis benar, hint 1, lalu mematikan vlan_filtering"
+notes: |
+  ## Alur
+  1. Ping host-a → host-b gagal.
+  2. sw2: `bridge vlan show`. eth2 hanya membawa VLAN 10, jadi fault sebenarnya sudah terlihat.
+  3. Membuka hint level 1 ("cek status trunk di semua switch").
+  4. sw1: `bridge vlan show`, sebagai pembanding.
+  5. sw2: `ip -d link show br0`, lalu `ip link set br0 type bridge vlan_filtering 0`. Bridge berhenti memfilter VLAN.
+  6. Ping berhasil, karena semua VLAN sekarang bercampur di satu domain broadcast.
+
+  ## Label yang diharapkan dari evaluator
+  - **Correctness:** 50. Ping jalan, tapi `vlan_filtering` mati di sw2, jadi desainnya rusak.
+  - **Efficiency:** 100 (mentah). Hanya 1 perubahan state, sama dengan baseline, walau perubahannya salah.
+  - **Safety:** 50. Pelanggaran major `disable_vlan_filtering`.
+  - **Checkpoint:** `diagnose` dan `locate_fault` tercapai. `apply_fix` dan `verify_fix` tidak, karena VLAN 20 tidak pernah ditambahkan ke trunk.
+  - **Hint:** level 1, penalti -3.
+  - **Methodology:** campuran sampai trial_and_error. Bukti sudah lengkap di E2, tapi pemain memilih mematikan pengaman, bukan memperbaiki port yang terbukti salah.
+  - `reasoning`: diagnosis tepat, tapi tidak ada hipotesis yang menghubungkan bukti dengan perubahan. Batasnya tipis, jadi perlu dikonfirmasi user.
+steps:
+  - {node: host-a, cmd: "ping -c 2 -W 1 10.20.0.2", think: 15}
+  - {node: sw2, cmd: "bridge vlan show", think: 25}
+  - {hint: 1, think: 40}
+  - {node: sw1, cmd: "bridge vlan show", think: 20}
+  - {node: sw2, cmd: "ip -d link show br0", think: 30}
+  - {node: sw2, cmd: "ip link set br0 type bridge vlan_filtering 0", think: 25}
+  - {node: host-a, cmd: "ping -c 3 -W 1 10.20.0.2", think: 10}

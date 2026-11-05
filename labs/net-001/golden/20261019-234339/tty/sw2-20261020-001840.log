@@ -1,0 +1,15 @@
+Script started on 2026-10-20 00:18:40+07:00 [COMMAND="docker exec -it -e LAB_NODE=sw2 -e LAB_SESSION=20261019-234339 clab-net001-sw2 bash --rcfile /etc/lab/rc -i" TERM="xterm-256color" TTY="/dev/pts/4" COLUMNS="146" LINES="47"]
+[?2004h[1;32msw2[0m:~# [200~bridge vlan add dev eth2 vid 20[201~[7mbridge vlan add dev eth2 vid 20[27m[C[C[C[C[C[C[C[Cbridge vlan add dev eth2 vid 20
+[?2004l[?2004h[1;32msw2[0m:~# ppiinngg  1100..2200..00..22
+[?2004lping: connect: Network unreachable
+[?2004h[1;32msw2[0m:~# bbrr  vvllaann  sshhooww
+[?2004lbash: br: command not found
+[?2004h[1;32msw2[0m:~# [Abr vlan show[1;5D[1;5D[Dr[1@ri[1@i[1P[1Pi[1@id[1@dg[1@ge[1@e
+[?2004lport              vlan-id  
+eth1              10
+                  20
+eth2              10
+                  20
+br0               1 PVID Egress Untagged
+                  10
+[?2004h[1;32msw2[0m:~# 

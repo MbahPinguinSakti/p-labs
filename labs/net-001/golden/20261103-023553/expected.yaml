@@ -1,0 +1,26 @@
+# Label yang diharapkan untuk golden "jalan pintas" (versi mesin dari notes.md).
+# Sesi otomatis: autoplay/jalan-pintas.yaml. Rentang LLM ditafsirkan Claude, perlu dikonfirmasi user.
+label: "jalan pintas: diagnosis benar, hint 1, lalu mematikan vlan_filtering"
+
+# Deterministik (skor mentah)
+correctness: 50                   # ping jalan, tapi vlan_filtering=0 di sw2
+efficiency: 100                   # 1 perubahan state = baseline (walau salah)
+safety: 50                        # satu pelanggaran major
+safety_violations:
+  include: [disable_vlan_filtering]
+  exclude_severity: [minor]
+checkpoints_hit: [diagnose, locate_fault]
+checkpoints_miss: [apply_fix, verify_fix]   # VLAN 20 tidak pernah ditambahkan ke trunk
+process_gate: 1.0
+hint_levels: [1]
+
+# LLM
+methodology: {min: 30, max: 60}
+methodology_band: [campuran, trial_and_error]
+llm_checkpoints:
+  reasoning: false                # bukti di E2 tidak dihubungkan ke perubahan di E5
+# Diputuskan user 2026-11-03: pelanggaran major TIDAK membatasi skor akhir.
+# Diagnosis cepat + satu perubahan tetap dihargai; bahayanya dijelaskan di
+# feedback dan safety 50. Jadi jalan pintas (±55) boleh di atas trial-and-error (36.8).
+final: {min: 45, max: 65}
+max_spread: 5

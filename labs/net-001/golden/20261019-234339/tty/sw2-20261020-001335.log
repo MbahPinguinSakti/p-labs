@@ -1,0 +1,27 @@
+Script started on 2026-10-20 00:13:35+07:00 [COMMAND="docker exec -it -e LAB_NODE=sw2 -e LAB_SESSION=20261019-234339 clab-net001-sw2 bash --rcfile /etc/lab/rc -i" TERM="xterm-256color" TTY="/dev/pts/4" COLUMNS="146" LINES="47"]
+[?2004h[1;32msw2[0m:~# iipp  --bbrr  lliinnkk
+[?2004llo               UNKNOWN        00:00:00:00:00:00 <LOOPBACK,UP,LOWER_UP> 
+br0              UP             aa:c1:ab:0c:1e:d0 <BROADCAST,MULTICAST,UP,LOWER_UP> 
+vlan10@br0       UP             aa:c1:ab:0c:1e:d0 <BROADCAST,MULTICAST,UP,LOWER_UP> 
+eth1@if128       UP             aa:c1:ab:0c:1e:d0 <BROADCAST,MULTICAST,UP,LOWER_UP> 
+eth2@if131       UP             aa:c1:ab:2f:4f:b4 <BROADCAST,MULTICAST,UP,LOWER_UP> 
+[?2004h[1;32msw2[0m:~# [Aip -br link[B[C[C[C[C[C[C[C[K^V[K[200~bridge fdb show br br0[201~[7mbridge fdb show br br0[27m[C[C[C[C[C[C[C[Cbridge fdb show br br0
+[?2004l33:33:00:00:00:01 dev br0 self permanent
+01:00:5e:00:00:6a dev br0 self permanent
+33:33:00:00:00:6a dev br0 self permanent
+01:00:5e:00:00:01 dev br0 self permanent
+33:33:ff:0c:1e:d0 dev br0 self permanent
+01:80:c2:00:00:21 dev br0 self permanent
+aa:c1:ab:0c:1e:d0 dev br0 vlan 1 master br0 permanent
+aa:c1:ab:0c:1e:d0 dev eth1 vlan 20 master br0 permanent
+aa:c1:ab:0c:1e:d0 dev eth1 vlan 10 master br0 permanent
+aa:c1:ab:0c:1e:d0 dev eth1 master br0 permanent
+33:33:00:00:00:01 dev eth1 self permanent
+01:00:5e:00:00:01 dev eth1 self permanent
+33:33:ff:0c:1e:d0 dev eth1 self permanent
+aa:c1:ab:2f:4f:b4 dev eth2 vlan 10 master br0 permanent
+aa:c1:ab:2f:4f:b4 dev eth2 master br0 permanent
+33:33:00:00:00:01 dev eth2 self permanent
+01:00:5e:00:00:01 dev eth2 self permanent
+33:33:ff:2f:4f:b4 dev eth2 self permanent
+[?2004h[1;32msw2[0m:~# 

@@ -1,0 +1,84 @@
+# Spesifikasi soal. Referensi lengkap tiap field: docs/membuat-lab.md
+id: __ID__
+category: network-engineer          # network-engineer | network-admin | cybersecurity
+title: "__TITLE__"
+difficulty: beginner                # beginner | intermediate | advanced
+lab_topology: topology.clab.yaml
+brief: brief.md
+ui:
+  summary: "host-a tidak bisa menjangkau host-b. Cari penyebabnya di switch."   # jangan bocorkan fault
+  ticket: "#1001"
+nos: linux-bridge                   # aturan perubahan state: platform/nos/<nos>.yaml
+
+# Nilai fault. Dipakai sebagai {{nama}} di field lain dan diteruskan ke inject.sh.
+parameters:
+  switch: sw1
+  port: eth2
+fault_injection:
+  script: inject.sh                 # inject.sh <switch> <port>
+  description: "Port {{port}} di {{switch}} dilepas dari bridge br0"
+  expected_fix: "ip link set {{port}} master br0 di {{switch}}"
+goal_state:
+  check: "ping host-a ke host-b berhasil, semua port tetap di br0"
+  verify_script: verify.sh
+
+checkpoints:
+  - id: diagnose
+    label: Diagnosis awal
+    type: command_match
+    node: any
+    pattern: '^(bridge link( show.*)?\s*$|ip (-\S+ )*link show\b)'   # hanya baca, bukan `bridge link set`
+  - id: locate_fault
+    label: Lokasi fault
+    hidden: true                    # nama + bukti baru tampil setelah dinilai
+    type: command_match
+    node: "{{switch}}"
+    pattern: '^(bridge link( show.*)?\s*$|ip (-\S+ )*link show\b)'
+  - id: apply_fix
+    label: Terapkan perbaikan
+    type: state_check
+    node: "{{switch}}"
+    command: "ip -br link show master br0"
+    expect_regex: '(?m)^{{port}}@'   # (?m): ^ = awal baris mana pun
+  - id: verify_fix
+    label: Verifikasi ujung ke ujung
+    type: command_match
+    any_of:
+      - {node: host-a, pattern: '^ping .*\b10\.0\.0\.2\b'}
+      - {node: host-b, pattern: '^ping .*\b10\.0\.0\.1\b'}
+    after: apply_fix
+    expect_exit: 0
+  - id: reasoning
+    label: Penalaran
+    type: llm_judge
+    criteria: "User memeriksa keanggotaan port di bridge sebelum mengubah konfigurasi"
+    require_evidence: true
+
+scoring:
+  weights: {correctness: 0.3, efficiency: 0.2, methodology: 0.4, safety: 0.1}
+  process_gate:
+    requires: [diagnose, locate_fault]
+    before: apply_fix
+    applies_to: [correctness, efficiency]
+  safety:
+    - id: touch_healthy_port
+      severity: minor
+      reason: "Mengubah port yang tidak rusak"
+      any_of:
+        - {node: "{{switch}}", key: '^link eth1$'}
+    - id: down_or_delete_link
+      severity: major
+      reason: "Mematikan atau menghapus interface/bridge"
+      pattern: '^ip\s+(?:-\S+\s+)*link\s+(?:set\s+(?:dev\s+)?\S+\s+.*\bdown\b|del(?:ete)?\b)'
+
+# Label link di diagram web UI: kondisi yang SEHARUSNYA (desain), bukan state.
+design:
+  links:
+    "host-a:eth1 sw1:eth1": "access"
+    "sw1:eth2 host-b:eth1": "access"
+expert_baseline:
+  state_changes: 1
+  typical_duration_min: 5
+hints:
+  - {level: 1, penalty: 3, text: "Host sudah benar. Lihat port mana saja yang tergabung di bridge switch."}
+  - {level: 2, penalty: 7, text: "Bandingkan anggota br0 di {{switch}} dengan link di topologi."}

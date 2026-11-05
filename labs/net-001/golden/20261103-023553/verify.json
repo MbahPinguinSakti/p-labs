@@ -1,0 +1,1 @@
+{"problem": "net-001", "correctness": 50, "ping_ok": true, "issues": ["sw2: vlan_filtering=0", "sw2:eth2 tidak membawa VLAN 20"]}

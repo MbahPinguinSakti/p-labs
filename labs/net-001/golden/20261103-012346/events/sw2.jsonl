@@ -1,0 +1,1 @@
+{"ts":1793643838.772241,"session":"20261103-012346","node":"sw2","type":"command","data":"bridge vlan add dev eth2 vid 20","exit":0}

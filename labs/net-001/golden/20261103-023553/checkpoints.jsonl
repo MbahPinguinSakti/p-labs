@@ -1,0 +1,2 @@
+{"session": "20261103-023553", "id": "diagnose", "type": "command_match", "ts": 1793648198.655942, "node": "sw2", "evidence": "bridge vlan show"}
+{"session": "20261103-023553", "id": "locate_fault", "type": "command_match", "ts": 1793648198.655942, "node": "sw2", "evidence": "bridge vlan show"}

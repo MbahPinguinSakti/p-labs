@@ -1,0 +1,21 @@
+Script started on 2026-11-03 02:36:37+07:00 [COMMAND="docker exec -it -e LAB_NODE=sw2 -e LAB_SESSION=20261103-023553 clab-net001-sw2 bash --rcfile /etc/lab/rc -i" TERM="alacritty" TTY="/dev/pts/4" COLUMNS="140" LINES="40"]
+[?2004h[1;32msw2[0m:~# bbrriiddggee  vvllaann  sshhooww
+[?2004lport              vlan-id  
+eth1              10
+                  20
+eth2              10
+br0               1 PVID Egress Untagged
+                  10
+[?2004h[1;32msw2[0m:~# iipp  --dd  lliinnkk  sshhooww  bbrr00
+[?2004l2: br0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9500 qdisc noqueue state UP mode DEFAULT group default qlen 1000
+    link/ether aa:c1:ab:62:46:b6 brd ff:ff:ff:ff:ff:ff promiscuity 0 allmulti 0 minmtu 68 maxmtu 65535 
+    bridge forward_delay 1500 hello_time 200 max_age 2000 ageing_time 30000 stp_state 0 priority 32768 vlan_filtering 1 vlan_protocol 802.1Q bridge_id 8000.AA:C1:AB:62:46:B6 designated_root 8000.AA:C1:AB:62:46:B6 root_port 0 root_path_cost 0 topology_change 0 topology_change_detected 0 hello_timer    0.00 tcn_timer    0.00 topology_change_timer    0.00 gc_timer   42.66 fdb_n_learned 3 fdb_max_learned 0 vlan_default_pvid 1 vlan_stats_enabled 0 vlan_stats_per_port 0 group_fwd_mask 0 group_address 01:80:c2:00:00:00 mcast_snooping 1 no_linklocal_learn 0 mcast_vlan_snooping 0 mcast_router 1 mcast_query_use_ifaddr 0 mcast_querier 0 mcast_hash_elasticity 16 mcast_hash_max 4096 mcast_last_member_count 2 mcast_startup_query_count 2 mcast_last_member_interval 100 mcast_membership_interval 26000 mcast_querier_interval 25500 mcast_query_interval 12500 mcast_query_response_interval 1000 mcast_startup_query_interval 3125 mcast_stats_enabled 0 mcast_igmp_version 2 mcast_mld_version 1 nf_call_iptables 0 nf_call_ip6tables 0 nf_call_arptables 0 addrgenmode eui64 numtxqueues 1 numrxqueues 1 gso_max_size 65536 gso_max_segs 65535 tso_max_size 524280 tso_max_segs 65535 gro_max_size 65536 gso_ipv4_max_size 65536 gro_ipv4_max_size 65536 
+[?2004h[1;32msw2[0m:~# iipp  lliinnkk  sseett  bbrr00  ttyyppee  bbrriiddggee  vvllaann__ffiilltteerriinngg  00
+[?2004l[?2004h[1;32msw2[0m:~# exitexit
+[?2004lexit
+
+[1mWhat's next:[0m
+    Try Docker Debug for seamless, persistent debugging tools in any container or image → [36mdocker debug clab-net001-sw2[0m
+    Learn more at https://docs.docker.com/go/debug-cli/
+
+Script done on 2026-11-03 02:38:53+07:00 [COMMAND_EXIT_CODE="0"]

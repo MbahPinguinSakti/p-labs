@@ -1,0 +1,138 @@
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-lg);
+  margin: calc(-1 * var(--space-sm)) 0 var(--space-3xl);
+}
+.charts {
+  display: grid;
+  grid-template-columns: minmax(0, 1.85fr) minmax(280px, 1fr);
+  gap: var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+
+/* Bar chart: satu seri, tanda tipis dengan ujung membulat 4px, baseline 1px, label
+   langsung hanya di sesi terakhir (dan yang di-hover). */
+.chart {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-sm);
+  height: 220px;
+  border-bottom: 1px solid var(--color-border);
+  padding-top: 28px;
+}
+.barSlot {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.bar {
+  width: min(40px, 70%);
+  border-radius: 4px 4px 0 0;
+  background: color-mix(in srgb, var(--color-accent) 42%, var(--color-surface-1));
+  transition: background-color 180ms var(--ease-out);
+}
+.barSlot:hover .bar,
+.barLast {
+  background: var(--color-accent);
+}
+.barLabel {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: var(--radius-mark);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.axis {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+.axis span {
+  flex: 1;
+  text-align: center;
+  color: var(--color-text-soft);
+  font-size: 13px;
+}
+
+.meters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+.meterHead {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+  color: var(--color-text-soft);
+  font-size: 14px;
+}
+.meterHead > :last-child {
+  color: var(--color-text);
+}
+.meters :global(.progress-track) {
+  display: block;
+  height: 6px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.table th {
+  text-align: left;
+  padding: 0 0 var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+  font-weight: 600;
+}
+.table td {
+  padding: var(--space-lg) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.table th:nth-last-child(2),
+.table td:nth-last-child(2) {
+  text-align: right;
+  padding-right: var(--space-xl);
+}
+.table td:last-child {
+  width: 24px;
+  color: var(--color-text-soft);
+}
+.table tbody tr {
+  cursor: pointer;
+}
+.table tbody tr:hover .labName,
+.table tbody tr:hover td:last-child {
+  color: var(--color-accent);
+}
+.labName {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+@media (max-width: 1100px) {
+  .charts {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 760px) {
+  .stats {
+    grid-template-columns: 1fr;
+  }
+  .table th:nth-child(3),
+  .table td:nth-child(3),
+  .table th:nth-child(4),
+  .table td:nth-child(4) {
+    display: none;
+  }
+}

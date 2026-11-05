@@ -1,0 +1,4 @@
+Script started on 2026-10-20 00:38:34+07:00 [COMMAND="docker exec -it -e LAB_NODE=host-a -e LAB_SESSION=20261019-234339 clab-net001-host-a bash --rcfile /etc/lab/rc -i" TERM="alacritty" TTY="/dev/pts/3" COLUMNS="192" LINES="47"]
+[?2004h[1;32mhost-a[0m:~# ppiinnff  [Kgg[Kgg[K[Kgg  1100..2200[K[K1100..00..11[K1111
+[?2004lping: connect: Network unreachable
+[?2004h[1;32mhost-a[0m:~# [Aping 10.10.0.11

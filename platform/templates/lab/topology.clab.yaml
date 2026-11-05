@@ -1,0 +1,46 @@
+# __ID__: __TITLE__
+#
+#   host-a --- sw1 --- host-b
+#      access VLAN 1 (bridge biasa)
+#
+# Template paling kecil yang sudah bisa dimainkan: satu Linux bridge, dua host.
+# Ganti node, link, dan perintah `exec` sesuai skenariomu.
+#
+# Aturan yang wajib dipertahankan untuk setiap topologi P-lab:
+# - `name` unik antar-lab (container jadi clab-<name>-<node>).
+# - kedua bind di `defaults`: hook perekaman command dan direktori event.
+# - network-mode: none, supaya node hanya terhubung lewat link soal.
+name: __CLAB_NAME__
+
+topology:
+  defaults:
+    kind: linux
+    image: nicolaka/netshoot:v0.13
+    network-mode: none
+    binds:
+      - ../../platform/lab-rc.sh:/etc/lab/rc:ro
+      - .state/events:/var/log/lab
+
+  nodes:
+    sw1:
+      exec:
+        - ip link add br0 type bridge
+        - ip link set eth1 master br0
+        - ip link set eth2 master br0
+        - ip link set eth1 up
+        - ip link set eth2 up
+        - ip link set br0 up
+
+    host-a:
+      exec:
+        - ip addr add 10.0.0.1/24 dev eth1
+        - ip link set eth1 up
+
+    host-b:
+      exec:
+        - ip addr add 10.0.0.2/24 dev eth1
+        - ip link set eth1 up
+
+  links:
+    - endpoints: ["host-a:eth1", "sw1:eth1"]
+    - endpoints: ["sw1:eth2", "host-b:eth1"]

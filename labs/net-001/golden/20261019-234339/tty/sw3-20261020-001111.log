@@ -1,0 +1,15 @@
+Script started on 2026-10-20 00:11:11+07:00 [COMMAND="docker exec -it -e LAB_NODE=sw3 -e LAB_SESSION=20261019-234339 clab-net001-sw3 bash --rcfile /etc/lab/rc -i" TERM="xterm-256color" TTY="/dev/pts/4" COLUMNS="146" LINES="47"]
+[?2004h[1;32msw3[0m:~# iipp  aadddd[K[K[K--bbrr  lliinnkk
+[?2004llo               UNKNOWN        00:00:00:00:00:00 <LOOPBACK,UP,LOWER_UP> 
+br0              UP             aa:c1:ab:6b:b2:49 <BROADCAST,MULTICAST,UP,LOWER_UP> 
+vlan10@br0       UP             aa:c1:ab:6b:b2:49 <BROADCAST,MULTICAST,UP,LOWER_UP> 
+eth1@if130       UP             aa:c1:ab:b7:d3:52 <BROADCAST,MULTICAST,UP,LOWER_UP> 
+eth2@if135       UP             aa:c1:ab:6b:b2:49 <BROADCAST,MULTICAST,UP,LOWER_UP> 
+[?2004h[1;32msw3[0m:~# --[Kii[Kbbrriiddggee  vvllaann  sshhooww
+[?2004lport              vlan-id  
+eth1              10
+                  20
+eth2              20
+br0               1 PVID Egress Untagged
+                  10
+[?2004h[1;32msw3[0m:~# 

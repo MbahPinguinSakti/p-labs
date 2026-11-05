@@ -1,0 +1,31 @@
+# Klasifikasi command untuk NOS linux-bridge (iproute2 + bridge).
+#
+# Setiap segmen command (dipecah di ; && || |) yang cocok dengan salah satu
+# pola di bawah DAN exit 0 dihitung sebagai perubahan state. Command lain
+# (show, ping, typo, dsb.) dianggap read-only dan tidak memengaruhi efficiency.
+#
+# `key` menormalkan perubahan ke objek yang diubah (named group dari pattern).
+# Perubahan berulang pada key yang sama di node yang sama = rework
+# (trial-and-error), dipakai untuk penalti efficiency dan aturan safety.
+#
+# NOS lain (mis. ceos.yaml) memakai format yang sama.
+
+state_change:
+  - pattern: '^bridge\s+vlan\s+(?P<op>add|del)\b.*?\bdev\s+(?P<dev>\S+).*?\bvid\s+(?P<vid>[\d-]+)'
+    key: 'vlan {dev} {vid}'
+  - pattern: '^bridge\s+(?:-\S+\s+)*link\s+set\b.*?\bdev\s+(?P<dev>\S+)'
+    key: 'brport {dev}'
+  - pattern: '^bridge\s+fdb\s+(?:add|append|replace|del)\b.*?\bdev\s+(?P<dev>\S+)'
+    key: 'fdb {dev}'
+  - pattern: '^ip\s+(?:-\S+\s+)*link\s+set\s+(?:dev\s+)?(?P<dev>\S+)'
+    key: 'link {dev}'
+  - pattern: '^ip\s+(?:-\S+\s+)*link\s+(?:add|del|delete)\s+(?:(?:dev|link|name)\s+)?(?P<dev>\S+)'
+    key: 'link {dev}'
+  - pattern: '^ip\s+(?:-\S+\s+)*a(?:ddr(?:ess)?)?\s+(?:add|del|delete|flush|replace)\b.*?\bdev\s+(?P<dev>\S+)'
+    key: 'addr {dev}'
+  - pattern: '^ip\s+(?:-\S+\s+)*r(?:oute)?\s+(?:add|del|delete|change|replace|flush)\b'
+    key: 'route'
+  - pattern: '^sysctl\s+(?:-\S+\s+)*-w\s+(?P<name>[^=\s]+)'
+    key: 'sysctl {name}'
+  - pattern: '>\s*/(?:sys|proc/sys)/(?P<path>\S+)'
+    key: 'sysfs {path}'
