@@ -12,6 +12,7 @@ if (( $# != 2 )); then
   echo "Usage: lab-shell <problem_dir> <node>   (contoh: platform/lab-shell labs/net-001 sw2)" >&2
   exit 1
 fi
+HERE=$(cd "$(dirname "$0")" && pwd)
 PROBLEM_DIR=$(cd "$1" && pwd)
 NODE=$2
 
@@ -39,8 +40,19 @@ host_event() {
 host_event shell_open
 trap 'host_event shell_close' EXIT
 
+# Node RouterOS (kind mikrotik_ros) tidak punya bash: shell-nya proxy di host
+# (ros.py shell) yang mencatat event sendiri. Node lain: bash + hook lab-rc.sh.
+PY="$(dirname "$HERE")/.venv/bin/python"
+[[ -x $PY ]] || PY=python3
+KIND=$("$PY" -c 'import sys; sys.path.insert(0, sys.argv[1]); import ros; print(ros.node_kind(ros.load_topology(sys.argv[2]), sys.argv[3]))' "$HERE" "$PROBLEM_DIR" "$NODE")
+if [[ $KIND == mikrotik_ros ]]; then
+  INNER="$PY $HERE/ros.py shell $PROBLEM_DIR $NODE"
+else
+  INNER="docker exec -it -e LAB_NODE=$NODE -e LAB_SESSION=$SESSION $CTR bash --rcfile /etc/lab/rc -i"
+fi
+
 script -q -f \
   -B "$STATE/tty/${NODE}-${stamp}.log" \
   -T "$STATE/tty/${NODE}-${stamp}.timing" \
   -m advanced \
-  -c "docker exec -it -e LAB_NODE=$NODE -e LAB_SESSION=$SESSION $CTR bash --rcfile /etc/lab/rc -i"
+  -c "$INNER"

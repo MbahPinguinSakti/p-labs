@@ -9,9 +9,7 @@ export type PlannedLab = {
 };
 
 export const PLANNED_LABS: PlannedLab[] = [
-  { title: "Subnetting Dasar", category: "networking", difficulty: "beginner", duration_min: 10 },
   { title: "STP Root Bridge Salah", category: "problem-solving", difficulty: "intermediate", duration_min: 20 },
-  { title: "OSPF Neighbor Stuck", category: "networking", difficulty: "advanced", duration_min: 15 },
   { title: "DHCP Relay Hilang", category: "networking", difficulty: "intermediate", duration_min: 12 },
   { title: "Firewall Rules", category: "security", difficulty: "intermediate", duration_min: 12 },
   { title: "ACL Memblokir DNS", category: "security", difficulty: "intermediate", duration_min: 10 },

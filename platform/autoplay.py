@@ -75,8 +75,9 @@ class Shell:
             stdin=slave, stdout=slave, stderr=slave, start_new_session=True, close_fds=True)
         os.close(slave)
         self.master = master
-        # PS1 dari lab-rc.sh: \e[1;32m<node>\e[0m:<cwd>#
-        self.prompt = re.compile(re.escape(f"{node}\x1b[0m:").encode() + rb"[^\n]*# ")
+        # PS1 dari lab-rc.sh: \e[1;32m<node>\e[0m:<cwd>#, atau prompt ros.py shell: [admin@<node>] /menu>
+        self.prompt = re.compile(re.escape(f"{node}\x1b[0m:").encode() + rb"[^\n]*# |"
+                                 + re.escape(f"@{node}] ").encode() + rb"[^\n>]*> ")
         threading.Thread(target=self._reader, daemon=True).start()
         self.wait_prompt(0)
 

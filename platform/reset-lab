@@ -7,6 +7,7 @@
 #   lab_topology            file .clab.yaml
 #   fault_injection.script  script inject (default inject.sh)
 #   goal_state.verify_script script verify (default verify.sh)
+#   deploy.ready_timeout    detik menunggu node siap + verify sehat (default 0)
 #
 # containerlab dipanggil langsung kalau sudah sudo-less (setuid + grup
 # clab_admins, lihat platform/setup-sudoless.sh). Kalau belum, lewat sudo.
@@ -35,12 +36,14 @@ if (( EUID == 0 )); then
 fi
 
 [[ -f problem.yaml ]] || { echo "Tidak ada problem.yaml di $LAB_DIR" >&2; exit 1; }
-read -r LAB_ID TOPO INJECT VERIFY < <("$PY" - <<'EOF'
+read -r LAB_ID TOPO INJECT VERIFY READY CLAB_NAME < <("$PY" - <<'EOF'
 import yaml
 p = yaml.safe_load(open("problem.yaml"))
+t = yaml.safe_load(open(p["lab_topology"]))
 print(p["id"], p["lab_topology"],
       (p.get("fault_injection") or {}).get("script", "inject.sh"),
-      (p.get("goal_state") or {}).get("verify_script", "verify.sh"))
+      (p.get("goal_state") or {}).get("verify_script", "verify.sh"),
+      int((p.get("deploy") or {}).get("ready_timeout", 0)), t["name"])
 EOF
 )
 [[ -n ${VERIFY:-} ]] || { echo "problem.yaml tidak terbaca (butuh id dan lab_topology)." >&2; exit 1; }
@@ -64,12 +67,25 @@ date +%Y%m%d-%H%M%S > .state/session_id
 echo "==> deploy"
 "${CLAB[@]}" deploy -t "$TOPO"
 
-# Sanity check: sebelum fault, lab harus sehat (verify exit 0 = correctness 100).
+# Node VM (mis. RouterOS lewat vrnetlab) sudah "running" jauh sebelum OS-nya
+# siap. Tunggu healthcheck container-nya, lalu ulangi verify sampai sehat
+# (routing dinamis seperti OSPF butuh waktu konvergen). Batasnya
+# deploy.ready_timeout di problem.yaml (detik, default 0 = sekali coba).
 echo "==> verify"
-if ! "./$VERIFY" >/dev/null; then
-  echo "Lab tidak sehat sebelum inject. Cek hasil: ./$VERIFY" >&2
-  exit 1
-fi
+deadline=$(( SECONDS + READY ))
+for ctr in $(docker ps --filter "label=containerlab=$CLAB_NAME" --format '{{.Names}}'); do
+  while [[ "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$ctr")" == starting ]]; do
+    (( SECONDS < deadline )) || { echo "$ctr belum siap setelah ${READY} detik." >&2; exit 1; }
+    sleep 3
+  done
+done
+until "./$VERIFY" >/dev/null; do
+  if (( SECONDS >= deadline )); then
+    echo "Lab tidak sehat sebelum inject. Cek hasil: ./$VERIFY" >&2
+    exit 1
+  fi
+  sleep 5
+done
 
 echo "==> inject"
 "./$INJECT" "$@"

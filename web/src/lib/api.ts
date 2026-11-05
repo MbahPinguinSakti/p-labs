@@ -36,7 +36,7 @@ export type LabCard = {
   checkpoints_hit: number;
 };
 
-export type TopoNode = { id: string; role: "host" | "switch" | "router" | "firewall" | string };
+export type TopoNode = { id: string; role: "host" | "switch" | "router" | "firewall" | string; kind?: string };
 export type TopoLink = { a: string; a_if: string; b: string; b_if: string; label: string | null };
 
 export type LabDetail = LabCard & {
@@ -44,6 +44,8 @@ export type LabDetail = LabCard & {
   topology: { nodes: TopoNode[]; links: TopoLink[] };
   weights: Record<string, number>;
   history: HistoryEntry[];
+  // Image yang harus dibangun lokal sebelum deploy (mis. RouterOS), beserta perintahnya.
+  missing_images: { image: string; build: string | null }[];
 };
 
 export type LiveCheckpoint = {

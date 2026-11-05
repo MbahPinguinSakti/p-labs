@@ -55,6 +55,24 @@ Beberapa hal yang perlu kamu tahu:
 - **Reset lab** membuang sesi ini tanpa menilainya, lalu men-deploy ulang dari
   awal. Pakai ini kalau lab-nya sudah terlalu berantakan.
 
+### Router MikroTik RouterOS
+
+Di lab RouterOS (net-002, net-003), terminal router berupa **shell RouterOS**
+dengan prompt seperti di perangkat aslinya: `[admin@r2] /ip address>`.
+
+- Command bisa diketik dengan path lengkap (`/ip address print`), atau masuk ke
+  menu dulu (`/ip address`, lalu `print`). `..` naik satu menu, `/` kembali ke
+  root, dan Tab melengkapi nama menu.
+- `ping`, `traceroute`, dan `monitor` otomatis dibatasi (`count=4`, `once`)
+  supaya selesai sendiri. Tambahkan `count=` sendiri kalau perlu jumlah lain.
+- Scripting RouterOS (`:put [...]`, `:foreach`) juga bisa dipakai.
+- `quit` menutup shell.
+
+Shell ini adalah proxy di komputermu yang mengirim setiap command ke router
+lewat SSH, karena RouterOS tidak bisa dipasangi perekam seperti host Linux.
+Akibatnya, mode interaktif khusus RouterOS (editor `edit`, `/system console`,
+Safe Mode dengan Ctrl-X) tidak tersedia.
+
 ### 4. Hint
 
 **Minta hint** membuka hint level berikutnya. Setiap level memotong skor akhir

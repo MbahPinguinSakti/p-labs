@@ -232,6 +232,7 @@ Arah solusi:
   - template soal yang langsung bisa dimainkan + `new-lab` + `lab-lint`;
   - dokumentasi di `docs/`.
   - Belum diuji di distro selain Arch (CachyOS).
+- **Soal MikroTik RouterOS (2026-11-06):** net-002 Subnetting Dasar dan net-003 OSPF Neighbor Stuck. Platform mendukung node `mikrotik_ros` (vrnetlab + CHR): shell proxy `ros.py` dengan rekaman command dalam bentuk lengkap, `nos/routeros.yaml`, dan `deploy.ready_timeout`. Ini menutup sebagian kekurangan 10.2 untuk RouterOS. **Belum diuji di RouterOS sungguhan** (image belum dibangun).
 - Belum dikerjakan: pengumpulan soal dari forum.
 
 ## 12. Langkah Selanjutnya

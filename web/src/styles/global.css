@@ -1,5 +1,6 @@
-/* Satu sumber token untuk website dan aplikasi lab: design/tokens.css (dari Figma). */
-@import "../../../design/tokens.css";
+/* Token desain: salinan tokens.css dari folder desain (Figma), sama dengan yang dipakai website.
+   Disalin ke repo supaya web UI bisa di-build tanpa folder desain. */
+@import "./tokens.css";
 
 /* Font dibundel lokal (@fontsource, tanpa CDN). Paket variable mendaftarkan
    nama "Inter Variable", jadi token font-ui ditimpa di sini. */

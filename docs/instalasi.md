@@ -15,6 +15,7 @@ memasang secara manual kalau installer tidak cocok dengan sistemmu.
 | Python | 3.10+ dengan `venv` | server web, perekam, evaluator |
 | Node.js + npm | 20.19+ | build web UI (sekali, saat install/update) |
 | util-linux (`script`) | | rekaman input + output terminal |
+| KVM | | hanya untuk lab MikroTik RouterOS ([detail](#lab-mikrotik-routeros)) |
 
 Ukuran: image `nicolaka/netshoot` sekitar 200 MB. Lab net-001 (5 node) memakai kurang dari 1 GB RAM.
 
@@ -76,6 +77,35 @@ memasang pacman hook supaya pengaturan ini tidak hilang saat containerlab di-upd
 > orang yang tidak kamu percaya.
 
 Untuk membatalkan: `sudo platform/setup-sudoless.sh --undo`.
+
+## Lab MikroTik RouterOS
+
+Lab `net-002` (Subnetting Dasar) dan `net-003` (OSPF Neighbor Stuck) memakai
+router **MikroTik RouterOS v7**. MikroTik tidak merilis image container x86
+untuk RouterOS, jadi lab ini memakai **CHR** (Cloud Hosted Router), yaitu
+image VM resmi MikroTik. CHR dijalankan dengan QEMU di dalam container lewat
+[vrnetlab](https://github.com/srl-labs/vrnetlab), dan containerlab mengenalnya
+sebagai kind `mikrotik_ros`.
+
+Image-nya dibangun sekali. Installer menawarkannya di tahap 4, atau jalankan
+sendiri:
+
+```bash
+platform/build-routeros-image.sh          # → vrnetlab/mikrotik_routeros:7.20.4
+```
+
+Script itu mengambil vrnetlab ke `~/.cache/p-lab/vrnetlab`, mengunduh
+`chr-<versi>.vmdk` (±50 MB) dari download.mikrotik.com, lalu menjalankan `make
+docker-image`. Butuh `git`, `curl`, `unzip`, dan `make`.
+
+| Kebutuhan | Keterangan |
+|---|---|
+| KVM (`/dev/kvm`) | virtualisasi (VT-x/AMD-V) aktif di BIOS. Tanpa KVM, CHR tetap jalan tapi sangat lambat |
+| RAM | ±256 MB per router (net-003: 3 router) |
+| Waktu deploy | 2–4 menit: router harus boot, lalu OSPF konvergen |
+
+CHR tanpa lisensi berbayar berjalan dalam mode *free*, dengan upload dibatasi
+1 Mbit/s per interface. Batas ini tidak berpengaruh untuk lab troubleshooting.
 
 ## Evaluator AI
 
@@ -148,7 +178,10 @@ Kalau distromu tidak dikenali installer:
 | Web masih menampilkan `./reset.sh` setelah setup sudo-less | Grup `clab_admins` belum aktif di proses server. Logout dan login (atau reboot), lalu restart service. |
 | Deploy gagal di tahap `verify` | Lab tidak sehat sebelum fault dipasang. Jalankan `./verify.sh` di folder lab untuk melihat masalahnya. Biasanya image belum terunduh atau RAM kurang. |
 | "Lab belum sehat ... Jalankan ./reset.sh" saat Mulai sesi | Lab rusak, misalnya container restart setelah reboot sehingga bridge hilang. Pakai **Reset lab** atau `./reset.sh`. |
+| Terminal di web menampilkan `login:` dan tidak bisa diketik (Ubuntu/Debian) | Itu ttyd milik service systemd `ttyd` bawaan paket distro, bukan terminal lab. Sejak versi ini server hanya memakai ttyd yang menjalankan lab-shell, dan memilih port lain kalau 7681 dipakai proses lain. Update (`git pull && ./install.sh`), lalu matikan service bawaannya: `sudo systemctl disable --now ttyd`. |
 | Terminal di web kosong | `ttyd` belum terpasang, atau port 7681 dipakai proses lain. Cek dengan `./install.sh --check`. |
 | `web/dist belum ada` | Build web UI gagal. Jalankan `cd web && npm ci && npm run build` dan perhatikan error-nya. Penyebab tersering: versi Node terlalu lama. |
 | Port 8000 sudah dipakai | Jalankan server di port lain: `platform/web --port 8080` (atau ubah `ExecStart` di `~/.config/systemd/user/p-lab.service`). |
+| Web: "Image vrnetlab/mikrotik_routeros:... belum ada" | Lab RouterOS butuh image yang dibangun lokal: `platform/build-routeros-image.sh` ([detail](#lab-mikrotik-routeros)). |
+| Deploy lab RouterOS gagal di tahap `verify` setelah beberapa menit | Router belum selesai boot dalam `deploy.ready_timeout`. Cek `docker logs clab-net002-r1`. Tanpa KVM, boot bisa lebih dari 5 menit. |
 | venv rusak setelah folder project dipindah | Jalankan `./install.sh` lagi. Installer mendeteksinya dan membuat ulang `.venv`. |

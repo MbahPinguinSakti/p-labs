@@ -57,6 +57,9 @@ class Lab:
         problem = yaml.safe_load((self.dir / "problem.yaml").read_text())
         topo = yaml.safe_load((self.dir / problem["lab_topology"]).read_text())
         self.lab_name = topo["name"]
+        body = topo.get("topology") or {}
+        default_kind = (body.get("defaults") or {}).get("kind", "linux")
+        self.kinds = {n: (s or {}).get("kind", default_kind) for n, s in (body.get("nodes") or {}).items()}
 
         self.problem = problem
         params = dict(problem.get("parameters", {}))
@@ -75,6 +78,13 @@ class Lab:
         return f"clab-{self.lab_name}-{node}"
 
     def run_on(self, node, command):
+        if self.kinds.get(node) == "mikrotik_ros":
+            import ros  # command state_check untuk RouterOS ditulis dalam sintaks RouterOS
+            try:
+                output, ok = ros.exec_once(self.dir, node, command, timeout=STATE_CHECK_TIMEOUT)
+            except (ConnectionError, OSError, subprocess.TimeoutExpired):
+                return None
+            return output if ok else None
         try:
             proc = subprocess.run(
                 ["docker", "exec", self.container(node), "sh", "-c", command],

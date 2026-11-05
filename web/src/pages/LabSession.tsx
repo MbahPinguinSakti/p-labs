@@ -144,6 +144,19 @@ function StartSession({ lab, state }: { lab: LabDetail; state: LiveState }) {
           {state.running === null && (
             <p className="notice notice-ember">Docker tidak bisa diakses dari server. Cek grup docker.</p>
           )}
+          {lab.missing_images.length > 0 && !deployed && (
+            <div className="notice notice-ember">
+              <span>
+                Image {lab.missing_images.map((m) => m.image).join(", ")} belum ada di komputer ini. Bangun sekali dari
+                terminal (beberapa menit):
+                {lab.missing_images.map((m) => (
+                  <code key={m.image} className={s.blockCode}>
+                    {m.build}
+                  </code>
+                ))}
+              </span>
+            </div>
+          )}
           {deploying ? (
             <DeployProgress job={deployJob!} />
           ) : deployed ? (
@@ -154,8 +167,11 @@ function StartSession({ lab, state }: { lab: LabDetail; state: LiveState }) {
             state.running !== null &&
             (canDeploy ? (
               <>
-                <p>Lab belum berjalan. Deploy menyalakan semua node lalu memasang fault (±30 detik).</p>
-                <button type="button" className="btn btn-primary" onClick={deploy} disabled={busy}>
+                <p>
+                  Lab belum berjalan. Deploy menyalakan semua node lalu memasang fault (
+                  {lab.topology.nodes.some((n) => n.kind === "mikrotik_ros") ? "router RouterOS: 2-4 menit" : "±30 detik"}).
+                </p>
+                <button type="button" className="btn btn-primary" onClick={deploy} disabled={busy || lab.missing_images.length > 0}>
                   Deploy & mulai
                 </button>
               </>

@@ -1,0 +1,53 @@
+# net-003: OSPF Neighbor Stuck (MikroTik RouterOS)
+#
+#   host-a --- r1 ====== r2 ====== r3 --- host-b
+#    LAN-A      10.0.12.0/30  10.0.23.0/30    LAN-C
+#  10.10.0.0/24                             10.30.0.0/24
+#
+# OSPFv2 area 0 (backbone) di ketiga router, router-id 1.1.1.1 / 2.2.2.2 / 3.3.3.3.
+# Tidak ada rute statis: LAN-A dan LAN-C saling dikenal hanya lewat OSPF.
+# MTU desain: 1500 di semua link.
+# r1-r3 = MikroTik CHR (RouterOS v7) lewat vrnetlab, butuh KVM.
+# Interface: eth1 container = ether2 RouterOS (ether1 = management vrnetlab).
+name: net003
+
+topology:
+  defaults:
+    binds:
+      - ../../platform/lab-rc.sh:/etc/lab/rc:ro
+      - .state/events:/var/log/lab
+  kinds:
+    linux:
+      image: nicolaka/netshoot:v0.13
+      network-mode: none
+    mikrotik_ros:
+      image: vrnetlab/mikrotik_routeros:7.20.4
+
+  nodes:
+    r1:
+      kind: mikrotik_ros
+      startup-config: config/r1.rsc
+    r2:
+      kind: mikrotik_ros
+      startup-config: config/r2.rsc
+    r3:
+      kind: mikrotik_ros
+      startup-config: config/r3.rsc
+    host-a:
+      kind: linux
+      exec:
+        - ip addr add 10.10.0.10/24 dev eth1
+        - ip link set eth1 up
+        - ip route add default via 10.10.0.1
+    host-b:
+      kind: linux
+      exec:
+        - ip addr add 10.30.0.10/24 dev eth1
+        - ip link set eth1 up
+        - ip route add default via 10.30.0.1
+
+  links:
+    - endpoints: ["host-a:eth1", "r1:eth1"]
+    - endpoints: ["r1:eth2", "r2:eth1"]
+    - endpoints: ["r2:eth2", "r3:eth1"]
+    - endpoints: ["r3:eth2", "host-b:eth1"]

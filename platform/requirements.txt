@@ -3,3 +3,4 @@ pyyaml>=6
 anthropic>=2.3      # provider default; provider lain lewat OpenAI-compatible (tanpa SDK)
 fastapi>=0.160      # web UI (server.py)
 uvicorn[standard]>=0.50
+paramiko>=3.4    # SSH ke node RouterOS (ros.py)

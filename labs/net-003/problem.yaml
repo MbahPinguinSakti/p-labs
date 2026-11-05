@@ -1,0 +1,103 @@
+id: net-003
+category: network-engineer
+title: "OSPF Neighbor Stuck"
+difficulty: advanced
+lab_topology: topo-3router-ospf.clab.yaml
+brief: brief.md
+ui:
+  summary: "Cabang C hilang dari jaringan setelah pekerjaan di link antar-router. Routing memakai OSPF di MikroTik RouterOS."
+  ticket: "#3318"
+nos: routeros
+deploy:
+  ready_timeout: 420              # tiga VM RouterOS + konvergensi OSPF
+
+parameters:
+  router: r2
+  port: ether3
+  mtu: 1400
+  peer: r3
+fault_injection:
+  script: inject.sh               # inject.sh <router> <port> <mtu> <peer>
+  description: "MTU {{port}} di {{router}} (link ke {{peer}}) diturunkan ke {{mtu}}; MTU di DBD OSPF tidak cocok dengan {{peer}} (1500), adjacency {{router}}-{{peer}} macet di ExStart/Exchange, rute ke LAN-C hilang"
+  expected_fix: "/interface ethernet set {{port}} mtu=1500 di {{router}}"
+goal_state:
+  check: "host-a dan host-b saling menjangkau lewat OSPF, semua adjacency Full, MTU 1500, tanpa rute statis"
+  verify_script: verify.sh
+
+checkpoints:
+  - id: diagnose
+    label: Diagnosis awal
+    type: command_match
+    node: any
+    pattern: '^(/routing ospf (neighbor|interface|lsa|instance|area|interface-template) print\b|/ip route print\b|/tool traceroute\b|/traceroute\b|traceroute\b|tracepath\b|ip (-\S+ )*(r|route)\b(?!.*\b(add|del|delete|change|replace|flush)\b))'
+  - id: locate_fault
+    label: Lokasi fault
+    hidden: true                  # menyebut router/link yang rusak
+    type: command_match
+    any_of:
+      - {node: "{{router}}", pattern: '^/interface (ethernet )?print\b'}
+      - {node: "{{peer}}", pattern: '^/interface (ethernet )?print\b'}
+  - id: apply_fix
+    label: Terapkan perbaikan
+    type: state_check
+    node: "{{router}}"
+    command: ':put [/interface get {{port}} mtu]'
+    expect_regex: '(?m)^1500\s*$'
+  - id: verify_fix
+    label: Verifikasi ujung ke ujung
+    type: command_match
+    any_of:
+      - {node: host-a, pattern: '^ping .*\b10\.30\.0\.10\b'}
+      - {node: host-b, pattern: '^ping .*\b10\.10\.0\.10\b'}
+    after: apply_fix
+    expect_exit: 0
+  - id: reasoning
+    label: Penalaran
+    type: llm_judge
+    criteria: "User mengaitkan state neighbor OSPF yang macet (ExStart/Exchange) dengan parameter interface, lalu membandingkan MTU kedua sisi link sebelum mengubah konfigurasi"
+    require_evidence: true
+
+scoring:
+  weights: {correctness: 0.3, efficiency: 0.2, methodology: 0.4, safety: 0.1}
+  process_gate:
+    requires: [diagnose, locate_fault]
+    before: apply_fix
+    applies_to: [correctness, efficiency]
+  safety:
+    - id: static_bypass
+      severity: minor
+      reason: "Melewati OSPF dengan rute statis (desain: routing dinamis saja)"
+      key: '^route$'
+    - id: touch_healthy_interface
+      severity: minor
+      reason: "Mengubah interface di router yang tidak bermasalah (mis. ikut menurunkan MTU di sisi lain)"
+      any_of:
+        - {node: r1, key: '^interface'}
+        - {node: r3, key: '^interface'}
+    - id: break_ospf
+      severity: major
+      reason: "Mematikan atau menghapus konfigurasi OSPF (semua rute dinamis ikut hilang)"
+      pattern: '^/routing ospf (instance|area|interface-template) (remove|disable)\b'
+    - id: disable_interface
+      severity: major
+      reason: "Mematikan interface (outage di link itu)"
+      pattern: '^/interface (?:\S+ )*disable\b|^ip\s+(?:-\S+\s+)*link\s+set\s+\S+\s+.*\bdown\b'
+    - id: change_host_ip
+      severity: major
+      reason: "Mengubah alamat host yang sudah sesuai desain"
+      any_of:
+        - {node: host-a, key: '^addr '}
+        - {node: host-b, key: '^addr '}
+
+design:
+  links:
+    "host-a:eth1 r1:eth1": "LAN-A · 10.10.0.0/24"
+    "r1:eth2 r2:eth1": "OSPF area 0 · 10.0.12.0/30"
+    "r2:eth2 r3:eth1": "OSPF area 0 · 10.0.23.0/30"
+    "r3:eth2 host-b:eth1": "LAN-C · 10.30.0.0/24"
+expert_baseline:
+  state_changes: 1
+  typical_duration_min: 12
+hints:
+  - {level: 1, penalty: 3, text: "Rute ke LAN-C seharusnya dipelajari lewat OSPF. Cek state neighbor OSPF di setiap router: apakah semuanya Full?"}
+  - {level: 2, penalty: 7, text: "Neighbor {{router}}-{{peer}} tidak pernah mencapai Full. Bandingkan parameter interface di kedua ujung link itu, terutama yang dibawa di paket DBD."}

@@ -11,6 +11,7 @@ import os
 import shutil
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -154,6 +155,39 @@ class TestDeploy(unittest.TestCase):
             self.assertEqual(ctx.exception.status_code, 409)
         finally:
             server.deploy_support = original
+
+
+@unittest.skipUnless(shutil.which("ttyd"), "ttyd tidak terinstall")
+class TestTtydPort(unittest.TestCase):
+    """Port ttyd yang sudah dipakai proses lain (mis. service `ttyd` bawaan
+    Ubuntu yang menjalankan `login`) tidak boleh dipakai ulang."""
+
+    def run_ttyd(self, *args):
+        import socket
+        import subprocess
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+        proc = subprocess.Popen(["ttyd", "-i", "lo", "-p", str(port), *args],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.addCleanup(lambda: (proc.kill(), proc.wait()))
+        for _ in range(50):
+            if server.port_open(port):
+                break
+            time.sleep(0.05)
+        return port
+
+    def test_foreign_ttyd_is_not_reused(self):
+        port = self.run_ttyd("login")   # seperti service ttyd bawaan Debian/Ubuntu
+        self.assertTrue(server.port_open(port))
+        self.assertFalse(server.lab_ttyd_on(port, TMP / "net-001"))
+        self.assertNotEqual(server.free_port(port), port)
+
+    def test_lab_ttyd_for_same_lab_is_reused(self):
+        lab = TMP / "net-001"
+        port = self.run_ttyd("-W", "-a", str(server.HERE / "lab-shell"), str(lab))   # seperti platform/serve
+        self.assertTrue(server.lab_ttyd_on(port, lab))
+        self.assertFalse(server.lab_ttyd_on(port, TMP / "lab-lain"))
 
 
 if __name__ == "__main__":

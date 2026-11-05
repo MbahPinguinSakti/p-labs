@@ -172,8 +172,18 @@ def attach_outputs(events, tty_dir, tolerance=1.5):
 
 class NosRules:
     def __init__(self, nos, platform_dir):
-        spec = yaml.safe_load((Path(platform_dir) / "nos" / f"{nos}.yaml").read_text())
-        self.rules = [(re.compile(r["pattern"]), r["key"]) for r in spec["state_change"]]
+        self.rules = []
+        self._load(nos, Path(platform_dir) / "nos", set())
+
+    def _load(self, nos, nos_dir, seen):
+        """`include: [nos lain]` menggabungkan aturan, mis. lab RouterOS dengan host Linux."""
+        if nos in seen:
+            return
+        seen.add(nos)
+        spec = yaml.safe_load((nos_dir / f"{nos}.yaml").read_text())
+        self.rules += [(re.compile(r["pattern"]), r["key"]) for r in spec.get("state_change", [])]
+        for other in spec.get("include", []):
+            self._load(other, nos_dir, seen)
 
     def changes(self, command):
         """Daftar key objek yang diubah oleh command (kosong = read-only)."""

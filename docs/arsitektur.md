@@ -14,8 +14,10 @@ dan diulang dari file.
     │
     └──iframe──▶ ttyd ──▶ platform/lab-shell <lab> <node>
                               ├─ script (util-linux)  → .state/tty/<node>-*.log + .timing
-                              └─ docker exec bash --rcfile /etc/lab/rc
-                                     └─ lab-rc.sh (hook PROMPT_COMMAND) → .state/events/<node>.jsonl
+                              ├─ node Linux:    docker exec bash --rcfile /etc/lab/rc
+                              │                   └─ lab-rc.sh (hook PROMPT_COMMAND) → .state/events/<node>.jsonl
+                              └─ node RouterOS: ros.py shell ──SSH──▶ CHR (VM di container vrnetlab)
+                                                  └─ event ditulis dari host → .state/events/<node>.jsonl
 ```
 
 ## Alur satu sesi
@@ -79,6 +81,7 @@ dan diulang dari file.
 | `server.py` | API + WebSocket + file statis web UI |
 | `reset-lab`, `sessions.py` | siklus hidup sesi: deploy, rearm tanpa deploy, arsip |
 | `lab-shell`, `lab-rc.sh`, `serve` | perekaman terminal |
+| `ros.py` | shell proxy RouterOS (prompt, konteks menu, SSH, event) + `exec` untuk inject/verify/state_check |
 | `checkpoints.py` | matcher checkpoint (watch live + status) |
 | `hints.py`, `lab-hint` | hint berjenjang yang tercatat |
 | `transcript.py` | event → timeline E-id, klasifikasi perubahan state per NOS |
@@ -87,5 +90,5 @@ dan diulang dari file.
 | `llm/` | lapisan provider LLM ([README](../platform/llm/README.md)) |
 | `autoplay.py` | memainkan skenario otomatis → golden transcript |
 | `lablint.py`, `newlab.py`, `templates/lab/` | membuat dan memeriksa soal |
-| `install-service.sh`, `setup-sudoless.sh` | dipanggil installer |
+| `install-service.sh`, `setup-sudoless.sh`, `build-routeros-image.sh` | dipanggil installer |
 | `_venv.py` | menjalankan ulang script CLI dengan Python `.venv` |

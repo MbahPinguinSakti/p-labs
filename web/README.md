@@ -39,7 +39,7 @@ sudo ../platform/setup-sudoless.sh    # sekali: containerlab tanpa sudo, lalu lo
   `../platform/install-service.sh --uninstall`.
 
 ## Struktur
-- `src/styles/global.css`: base dan kelas bersama. Token di-import dari `../design/tokens.css` (sumber yang sama dengan website). Jangan tulis hex atau ukuran manual di komponen.
+- `src/styles/global.css`: base dan kelas bersama. Token ada di `src/styles/tokens.css`, salinan dari folder desain yang juga dipakai website. Kalau token desain berubah, salin ulang file itu. Jangan tulis hex atau ukuran manual di komponen.
 - `src/lib/api.ts`: klien dan tipe API. `hooks.ts` berisi `useApi`, `useLiveSession` (WebSocket), `useNow`, dan `useStoredSet`.
 - `src/lib/catalog.ts`: lab yang direncanakan ("segera hadir"). Hapus entrinya begitu soalnya ada di `labs/`.
 - `src/lib/learn.ts`: materi halaman Belajar.

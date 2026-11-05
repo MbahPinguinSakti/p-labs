@@ -1,0 +1,37 @@
+# Klasifikasi command untuk MikroTik RouterOS (v7), plus host Linux di lab yang sama.
+#
+# Command RouterOS selalu tercatat dalam bentuk lengkap oleh ros.py shell
+# (`/ip address set ...`, bukan `set ...` di dalam konteks /ip address), jadi pola
+# di sini cukup mencocokkan path absolut. Format sama dengan linux-bridge.yaml:
+# command yang cocok DAN tidak error = perubahan state; `key` = objek yang diubah
+# (perubahan berulang pada key yang sama di node yang sama = rework).
+#
+# Urutan penting: aturan pertama yang cocok dipakai, jadi pola spesifik (dengan
+# named group) ditaruh sebelum pola umum. Key hanya boleh memakai group yang
+# selalu ada di polanya.
+
+include: [linux-bridge]
+
+state_change:
+  # Alamat IP: per interface kalau disebut, kalau tidak per menu.
+  - pattern: '^/ip address (?:add|set|remove|enable|disable)\b.*?\binterface=(?P<dev>[\w.-]+)'
+    key: 'ip address {dev}'
+  - pattern: '^/ip address (?:add|set|remove|enable|disable|unset)\b'
+    key: 'ip address'
+  - pattern: '^/ip route (?:add|set|remove|enable|disable|unset)\b'
+    key: 'route'
+  # Interface: `set ether3 mtu=...`, `disable ether2`, termasuk submenu ethernet/vlan/bridge.
+  - pattern: '^/interface (?:ethernet |vlan |bridge )?(?:set|enable|disable|reset|unset)\s+(?P<dev>ether\d+|[a-z][\w.-]*)(?:\s|$)'
+    key: 'interface {dev}'
+  - pattern: '^/interface (?:\S+ )*(?:add|set|remove|enable|disable|reset|unset)\b'
+    key: 'interface'
+  - pattern: '^/routing ospf (?P<menu>instance|area|interface-template|static-neighbor) (?:add|set|remove|enable|disable|unset)\b'
+    key: 'ospf {menu}'
+  - pattern: '^/routing (?P<menu>bgp|filter|rip|table|id) (?:\S+ )*(?:add|set|remove|enable|disable|unset)\b'
+    key: 'routing {menu}'
+  - pattern: '^/ip firewall (?P<menu>filter|nat|mangle|raw|address-list) (?:add|set|remove|enable|disable|move|unset)\b'
+    key: 'firewall {menu}'
+  - pattern: '^/ip (?P<menu>dhcp-server|dhcp-client|dhcp-relay|pool|dns|arp|neighbor discovery-settings) (?:\S+ )*(?:add|set|remove|enable|disable|unset)\b'
+    key: 'ip {menu}'
+  - pattern: '^/system (?P<menu>identity|reset-configuration|reboot|shutdown|package)\b'
+    key: 'system {menu}'

@@ -143,6 +143,19 @@ if (( ${#MISSING[@]} )); then
   fi
 fi
 
+# Paket ttyd di Debian/Ubuntu memasang service systemd `ttyd` (login read-only di
+# port 7681). P-lab menjalankan ttyd sendiri dan tidak butuh service ini; server
+# sudah menghindari port yang dipakai proses lain, tapi service-nya tetap tidak perlu.
+if systemctl is-active -q ttyd 2>/dev/null; then
+  if (( CHECK )); then
+    warn "service systemd 'ttyd' bawaan distro aktif (login di port 7681); tidak dipakai P-lab: sudo systemctl disable --now ttyd"
+  elif ask "Matikan service 'ttyd' bawaan distro (login di port 7681, tidak dipakai P-lab)? (butuh sudo)"; then
+    sudo systemctl disable --now ttyd && ok "service ttyd bawaan dimatikan"
+  else
+    warn "service ttyd bawaan tetap aktif; P-lab memakai port lain (7682+)."
+  fi
+fi
+
 # docker harus bisa dipakai tanpa sudo (lab-shell, verify.sh, server).
 if have docker; then
   if docker info >/dev/null 2>&1; then ok "docker bisa diakses tanpa sudo"
@@ -165,6 +178,11 @@ if (( CHECK )); then
   systemctl --user is-active -q p-lab 2>/dev/null && ok "service p-lab berjalan" || bad "service p-lab tidak berjalan"
   CLAB_BIN=$(command -v containerlab || true)
   [[ -n $CLAB_BIN && -u $CLAB_BIN ]] && ok "containerlab sudo-less (deploy dari web)" || bad "containerlab masih butuh sudo (deploy hanya lewat terminal)"
+  for image in $(grep -ho 'vrnetlab/mikrotik_routeros:[0-9.]*' labs/*/*.clab.yaml 2>/dev/null | sort -u); do
+    docker image inspect "$image" >/dev/null 2>&1 && ok "image $image" \
+      || bad "image $image belum dibangun (lab RouterOS): platform/build-routeros-image.sh"
+  done
+  [[ -r /dev/kvm && -w /dev/kvm ]] && ok "KVM tersedia (/dev/kvm)" || bad "KVM tidak bisa diakses: lab RouterOS akan sangat lambat"
   [[ -x .venv/bin/python ]] && { .venv/bin/python platform/lablint.py labs/*/ | sed 's/^/  /'; } || true
   exit 0
 fi
@@ -208,6 +226,15 @@ EOF
 if docker info >/dev/null 2>&1; then
   for image in $IMAGES; do
     if docker image inspect "$image" >/dev/null 2>&1; then ok "$image"
+    elif [[ $image == vrnetlab/mikrotik_routeros:* ]]; then
+      # Tidak ada di registry: dibangun lokal dari CHR (image VM resmi MikroTik).
+      echo "  ${D}$image dipakai lab MikroTik RouterOS dan harus dibangun lokal"
+      echo "  (unduh CHR ±50 MB dari mikrotik.com + vrnetlab, beberapa menit).${N}"
+      if ask "Bangun $image sekarang?"; then
+        platform/build-routeros-image.sh "${image##*:}" | sed 's/^/  /' && ok "$image (dibangun)"
+      else
+        warn "$image belum ada: lab RouterOS belum bisa di-deploy (platform/build-routeros-image.sh)."
+      fi
     else docker pull -q "$image" >/dev/null && ok "$image (diunduh)"; fi
   done
 else

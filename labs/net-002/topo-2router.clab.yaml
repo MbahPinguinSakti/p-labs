@@ -1,0 +1,51 @@
+# net-002: Subnetting Dasar (MikroTik RouterOS)
+#
+#   host-a ---- r1 ========== r2 ---- host-b
+#     LAN-A        10.0.12.0/30     LAN-B
+#   10.10.0.0/24                 10.20.0.0/24
+#
+# r1, r2 = MikroTik CHR (RouterOS v7) lewat vrnetlab: VM di dalam container,
+# butuh KVM. Image dibangun sekali: platform/build-routeros-image.sh.
+# Interface: eth1 container = ether2 RouterOS (ether1 = management vrnetlab).
+# Konfigurasi sehat ada di config/<router>.rsc, dipasang saat boot.
+# Routing statis: r1 → LAN-B lewat r2, r2 → LAN-A lewat r1.
+name: net002
+
+topology:
+  defaults:
+    binds:
+      - ../../platform/lab-rc.sh:/etc/lab/rc:ro
+      - .state/events:/var/log/lab
+  kinds:
+    linux:
+      image: nicolaka/netshoot:v0.13
+      network-mode: none          # host hanya terhubung lewat link soal
+    mikrotik_ros:
+      image: vrnetlab/mikrotik_routeros:7.20.4
+      # Router tetap di jaringan management containerlab (SSH untuk ros.py).
+      # ether1 RouterOS terisolasi di dalam container-nya sendiri.
+
+  nodes:
+    r1:
+      kind: mikrotik_ros
+      startup-config: config/r1.rsc
+    r2:
+      kind: mikrotik_ros
+      startup-config: config/r2.rsc
+    host-a:
+      kind: linux
+      exec:
+        - ip addr add 10.10.0.10/24 dev eth1
+        - ip link set eth1 up
+        - ip route add default via 10.10.0.1
+    host-b:
+      kind: linux
+      exec:
+        - ip addr add 10.20.0.130/24 dev eth1
+        - ip link set eth1 up
+        - ip route add default via 10.20.0.1
+
+  links:
+    - endpoints: ["host-a:eth1", "r1:eth1"]
+    - endpoints: ["r1:eth2", "r2:eth1"]
+    - endpoints: ["r2:eth2", "host-b:eth1"]

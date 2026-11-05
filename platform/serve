@@ -19,6 +19,11 @@ fi
 
 command -v ttyd >/dev/null || { echo "ttyd belum terinstall (lihat docs/instalasi.md)" >&2; exit 1; }
 [[ -f "$PROBLEM_DIR/.state/session_id" ]] || { echo "Belum ada sesi. Jalankan ./reset.sh dulu." >&2; exit 1; }
+if (exec 3<>"/dev/tcp/127.0.0.1/$PORT") 2>/dev/null; then
+  echo "Port $PORT sudah dipakai (di Ubuntu/Debian biasanya service 'ttyd' bawaan: sudo systemctl disable --now ttyd)." >&2
+  echo "Atau pakai port lain: serve $PROBLEM_DIR 7690" >&2
+  exit 1
+fi
 
 "$PY" "$HERE/checkpoints.py" watch "$PROBLEM_DIR" > "$PROBLEM_DIR/.state/watch.log" 2>&1 &
 WATCH_PID=$!

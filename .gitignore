@@ -8,3 +8,8 @@ web/dist/
 labs/*/.state/
 labs/*/clab-*/
 labs/*/sessions/
+
+# Catatan pengembangan internal (tidak ikut didistribusikan)
+rencana.md
+CHANGELOG.md
+.claude/

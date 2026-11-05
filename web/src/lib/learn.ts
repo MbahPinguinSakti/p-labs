@@ -70,6 +70,16 @@ export const TRACKS: Record<string, Track> = {
           { term: "show ip interface brief", desc: "≈ ip -br addr", code: true },
         ],
       },
+      {
+        title: "MikroTik RouterOS",
+        subtitle: "Dipakai lab Subnetting Dasar dan OSPF Neighbor Stuck.",
+        items: [
+          { term: "/ip address print", desc: "Alamat per interface, lengkap dengan prefix", code: true },
+          { term: "/ip route print", desc: "Tabel routing. Flag D = dinamis (mis. OSPF), S = statis", code: true },
+          { term: "/routing ospf neighbor print", desc: "Tetangga OSPF dan state-nya (harus Full)", code: true },
+          { term: "/interface print", desc: "Status interface, termasuk MTU", code: true },
+        ],
+      },
     ],
   },
   cybersecurity: {

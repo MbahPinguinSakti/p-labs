@@ -21,4 +21,4 @@ llm_checkpoints:
   # walau eksekusinya salah sasaran (itu sudah tercermin di methodology/safety).
   reasoning: true
 final: {min: 20, max: 50}
-max_spread: 5                     # selisih methodology antar-run (--repeat), rencana.md bagian 9
+max_spread: 5                     # selisih methodology antar-run (--repeat), lihat docs/membuat-lab.md

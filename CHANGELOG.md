@@ -6,6 +6,111 @@ Format tiap entri: **apa** yang berubah, **kenapa** (gejala/temuan), **file**, d
 
 ---
 
+## 2026-11-06 (3): Perbaikan: terminal web menampilkan `login:` di Ubuntu
+
+**Gejala** (laporan user, Ubuntu): terminal di halaman sesi menampilkan `[user] login:` dan tidak bisa diketik.
+
+**Penyebab**: paket `ttyd` di Debian/Ubuntu memasang service systemd `ttyd` yang menjalankan `login` di port 7681 tanpa `-W` (read-only). Port itu sama dengan port default kita. `Runtime.ensure` memakai ulang **proses apa pun** yang membuka 7681, karena dianggap ttyd dari `platform/serve`. Akibatnya iframe tersambung ke ttyd milik sistem.
+
+### Diperbaiki
+- `server.py`:
+  - `lab_ttyd_on(port, dir)` membaca `/proc/*/cmdline`. ttyd luar hanya dipakai ulang kalau ia menjalankan `lab-shell` untuk direktori lab yang sama;
+  - selain itu server memilih port kosong berikutnya (`free_port`, 7682+). Frontend sudah memakai `ttyd_port` dari API, jadi tidak perlu diubah;
+  - server juga menunggu sampai ttyd listen (maks. 2 detik) sebelum menjawab, supaya iframe tidak memuat port yang masih kosong.
+- `install.sh`: kalau service `ttyd` bawaan aktif, installer menawarkan `systemctl disable --now ttyd`. `--check` melaporkannya.
+- `platform/serve`: gagal dengan pesan jelas kalau port-nya sudah dipakai.
+- `docs/instalasi.md`: baris baru di tabel masalah umum.
+
+### Verifikasi
+- `tests/test_server.py` +2 (dengan ttyd asli, dilewati kalau ttyd tidak ada):
+  - `ttyd ... login` di sebuah port tidak dipakai ulang, dan `free_port` memilih port lain;
+  - ttyd `lab-shell` untuk lab yang sama dipakai ulang, sedangkan untuk lab lain tidak.
+  - Total 74 OK, 2 skipped.
+- End-to-end di service yang berjalan: dengan `ttyd -i lo -p 7681 login` aktif (meniru Ubuntu), `POST /api/labs/net-001/runtime` menjawab `ttyd_port: 7682`, dan ttyd baru menjalankan lab-shell.
+- **Belum diuji di Ubuntu sungguhan.** Penyebabnya disimpulkan dari gejala, belum dicek langsung di mesin itu.
+
+---
+
+## 2026-11-06 (2): Dua soal MikroTik RouterOS (net-002, net-003) + dukungan RouterOS di platform
+
+**Kenapa** (permintaan user): soal baru dengan router MikroTik. RouterOS tidak punya bash, jadi perekam `lab-rc.sh` tidak bisa dipakai, dan tidak ada image container x86 resmi. Perlu jalur rekam dan jalur image sendiri.
+
+### Ditambahkan
+- **`labs/net-002` Subnetting Dasar** (beginner). host-a, r1, r2, host-b dengan routing statis. Fault: prefix LAN-B di r2 ether3 dipersempit menjadi /25, sehingga server .130 jatuh di luar subnet.
+  - Jalan pintas yang dinilai 50: mengubah IP server, atau menambal dengan rute /32.
+- **`labs/net-003` OSPF Neighbor Stuck** (advanced). Tiga router dengan OSPF area 0. Fault: MTU r2 ether3 diturunkan ke 1400, lalu interface di-flap, sehingga adjacency r2–r3 macet di ExStart/Exchange.
+  - Jalan pintas yang dinilai 50: menurunkan MTU di sisi r3, atau memasang rute statis. verify memeriksa MTU, adjacency Full, dan tidak adanya rute statis.
+  - Keduanya lengkap dengan konfigurasi `.rsc` per router, checkpoint, safety, hint, `design.links`, autoplay expert, dan README berisi skenario uji manual.
+- **`platform/ros.py`**:
+  - `shell`: proxy CLI RouterOS di host, dengan prompt `[admin@r2] /ip address>`, konteks menu, `..`/`/`, Tab completion, dan scripting yang diteruskan apa adanya. `ping`/`traceroute`/`monitor` dibatasi otomatis. Command dikirim lewat SSH (paramiko), lalu dicatat ke `events/<node>.jsonl` dalam **bentuk lengkap** beserta output-nya;
+  - exit code ditentukan dari pesan error RouterOS;
+  - `exec` untuk inject/verify/state_check.
+- **`platform/nos/routeros.yaml`** + dukungan `include:` di `NosRules`: aturan RouterOS digabung dengan aturan host Linux.
+- **`platform/build-routeros-image.sh`**: vrnetlab + CHR resmi → `vrnetlab/mikrotik_routeros:<versi>`. Versi default diambil dari topologi lab.
+- `deploy.ready_timeout` di `problem.yaml`: `reset-lab` menunggu healthcheck container, lalu mengulang verify sampai sehat.
+- Web/API:
+  - `missing_images` di detail lab. Selama image RouterOS belum dibangun, Deploy dinonaktifkan, perintah build ditampilkan, dan endpoint deploy menolak dengan 409;
+  - diagram menampilkan nama interface RouterOS (eth1 → ether2);
+  - perkiraan waktu deploy 2–4 menit untuk lab RouterOS;
+  - contekan RouterOS di jalur Belajar Networking;
+  - "Subnetting Dasar" dan "OSPF Neighbor Stuck" keluar dari daftar "segera hadir".
+- Installer:
+  - tahap 4 menawarkan build image RouterOS, bukan `docker pull`, yang pasti gagal untuk image itu;
+  - `--check` melaporkan image RouterOS dan KVM.
+- Dokumentasi:
+  - `docs/instalasi.md#lab-mikrotik-routeros`;
+  - shell RouterOS di `penggunaan.md`;
+  - bagian "Lab MikroTik RouterOS" di `membuat-lab.md`;
+  - diagram dan tabel modul di `arsitektur.md`.
+
+### Diubah
+- `lab-shell` memilih shell berdasarkan kind node. `checkpoints.Lab` mengetahui kind tiap node (`run_on` lewat SSH untuk RouterOS).
+- `autoplay.py` mengenali prompt shell RouterOS.
+- `lablint`:
+  - safety dengan `key` di level rule dianggap valid (memang didukung `scoring.py`);
+  - `network-mode` dicek per node Linux, termasuk lewat `kinds`;
+  - file `startup-config` dicek keberadaannya.
+- `DeployJobs` menutup pipe `reset.sh`, sehingga ResourceWarning hilang.
+- `paramiko` masuk `requirements.txt`.
+
+### Verifikasi
+- `tests/test_ros.py` (+15):
+  - normalisasi command (absolut, navigasi menu, relatif, pembatasan ping/monitor, scripting);
+  - deteksi error;
+  - aturan NOS RouterOS + include Linux;
+  - lint kedua lab, kind node, nama interface di topologi web, regex diagnose cocok/tidak cocok;
+  - format event shell sama dengan lab-rc.
+  - Total 72 test OK, 2 skipped.
+- `lab-lint` net-001..003 OK. API menampilkan ketiga lab dan `missing_images` untuk net-003. Semua link docs valid.
+- **Belum diuji di RouterOS sungguhan.** Build image ditolak oleh permission mode, karena menjalankan kode yang diunduh (vrnetlab + CHR). Yang perlu dipastikan saat pertama deploy:
+  - SSH admin/admin ke container;
+  - teks pesan error RouterOS cocok dengan `ERROR_RX`;
+  - `.rsc` terpasang saat boot;
+  - RouterOS v7 benar-benar menahan adjacency di ExStart saat MTU berbeda (`inject.sh` net-003 gagal dengan pesan jelas kalau tidak);
+  - semua baris tabel uji manual di README kedua lab.
+
+---
+
+## 2026-11-06 (1): Catatan internal tidak ikut didistribusikan, README menaut ke docs
+
+**Kenapa** (arahan user): `rencana.md`, `CHANGELOG.md`, dan `.claude/` adalah catatan pengembangan, bukan dokumentasi pengguna.
+
+### Diubah
+- `.gitignore`: `rencana.md`, `CHANGELOG.md`, `.claude/`. File-filenya tetap ada di mesin pengembang.
+- Rujukan ke `rencana.md`/`CHANGELOG.md` dihapus atau dialihkan ke `docs/`, yaitu di README, `docs/membuat-lab.md`, `platform/scoring.py`, `web/src/pages/Leaderboard.tsx`, dan golden `expected.yaml` net-001.
+- `README.md` sekarang menaut ke bagian-bagian docs di tiga tempat:
+  - daftar fitur (skor, evaluator AI, hint, membuat lab);
+  - mulai cepat (installer, sudo-less, masalah umum, sesi pertama);
+  - struktur folder, yang kini berupa tabel dengan kolom dokumentasi.
+
+- `design/` dipindah user ke luar repo (`project_lab/design/`). Akibatnya build web gagal, karena `global.css` meng-import `../../../design/tokens.css`. Token sekarang disalin ke `web/src/styles/tokens.css`, sama seperti website yang juga punya salinan sendiri, sehingga repo bisa di-build tanpa folder desain. Rujukan `design/` di README dan `server.py` ikut diperbarui.
+
+### Verifikasi
+- Semua link relatif dan anchor di README + `docs/` dicek dengan script: 0 rusak.
+- `npm run build` berhasil lagi.
+
+---
+
 ## 2026-11-05 (2): Distribusi: installer, template soal, dokumentasi
 
 **Kenapa**: tujuan project berubah. P-lab harus mudah dipasang orang lain dan mudah ditambah soal baru. Sebelumnya setup hanya terdokumentasi lewat catatan di mesin pembuatnya, dan membuat soal baru berarti menyalin net-001 lalu menebak bagian mana yang wajib.

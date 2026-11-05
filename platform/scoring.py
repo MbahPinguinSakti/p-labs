@@ -1,6 +1,6 @@
 """Penilaian deterministik (tanpa LLM): efficiency, safety, hint, skor akhir.
 
-Rumus mengikuti rencana.md bagian 4. Konfigurasi per soal ada di problem.yaml
+Rumus dijelaskan di docs/penggunaan.md (Cara skor dihitung). Konfigurasi per soal ada di problem.yaml
 bagian `scoring`; nilai default di sini.
 """
 

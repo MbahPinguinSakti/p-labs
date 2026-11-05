@@ -128,11 +128,20 @@ def lint(lab_dir):
             report.error("defaults.binds tidak memasang platform/lab-rc.sh:/etc/lab/rc (command tidak terekam)")
         if ".state/events:/var/log/lab" not in binds:
             report.error("defaults.binds tidak memasang .state/events:/var/log/lab (event tidak sampai ke host)")
-        if (body.get("defaults") or {}).get("network-mode") != "none":
-            report.warn("defaults.network-mode bukan 'none': node bisa saling menjangkau lewat jaringan management docker")
-        for node in nodes:
+        defaults, kinds = body.get("defaults") or {}, body.get("kinds") or {}
+        for node, spec in (body.get("nodes") or {}).items():
+            spec = spec or {}
             if not re.fullmatch(r"[a-z0-9-]+", node):
                 report.error(f"nama node '{node}' hanya boleh huruf kecil, angka, dan '-' (lab-shell menolak)")
+            kind = spec.get("kind") or defaults.get("kind") or "linux"
+            # Node Linux tanpa jaringan management: hanya terhubung lewat link soal.
+            # Node VM (mis. mikrotik_ros) memang butuh management untuk SSH dari host.
+            mode = spec.get("network-mode") or (kinds.get(kind) or {}).get("network-mode") or defaults.get("network-mode")
+            if kind == "linux" and mode != "none":
+                report.warn(f"node {node}: network-mode bukan 'none', bisa saling menjangkau lewat jaringan management docker")
+            config = spec.get("startup-config")
+            if config and not (topo_file.parent / config).is_file():
+                report.error(f"node {node}: startup-config '{config}' tidak ada")
 
     brief = lab_dir / problem.get("brief", "brief.md")
     if not brief.exists():
@@ -206,9 +215,9 @@ def lint(lab_dir):
         where = f"safety '{rule.get('id', '?')}'"
         if rule.get("severity") not in SEVERITIES:
             report.error(f"{where}: severity harus minor atau major")
-        if not rule.get("pattern") and not rule.get("any_of"):
-            report.error(f"{where}: butuh pattern dan/atau any_of")
-        for pattern in [rule.get("pattern")] + [alt.get("key") for alt in rule.get("any_of") or []]:
+        if not any(rule.get(k) for k in ("pattern", "key", "any_of")):
+            report.error(f"{where}: butuh pattern, key, dan/atau any_of")
+        for pattern in [rule.get("pattern"), rule.get("key")] + [alt.get("key") for alt in rule.get("any_of") or []]:
             if pattern:
                 check_regex(report, where, pattern, params)
 

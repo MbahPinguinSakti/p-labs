@@ -43,6 +43,7 @@ ROOT = HERE.parent
 sys.path.insert(0, str(HERE))
 
 import evaluate  # noqa: E402
+import ros  # noqa: E402
 import sessions  # noqa: E402
 from checkpoints import Lab  # noqa: E402
 from hints import HintError, hint_list, open_hint, used_levels  # noqa: E402
@@ -54,7 +55,7 @@ WEB_DIST = ROOT / "web" / "dist"
 TTYD_PORT = int(os.environ.get("LAB_TTYD_PORT", 7681))
 USER = os.environ.get("LAB_USER") or getpass.getuser()
 
-# Tema xterm.js di ttyd, mengikuti design tokens (design/tokens.css).
+# Tema xterm.js di ttyd, mengikuti design tokens (web/src/styles/tokens.css).
 TTYD_THEME = {
     "background": "#0B0E0C", "foreground": "#ECF3EE", "cursor": "#5FF0B0",
     "cursorAccent": "#04120C", "selectionBackground": "#1D5A41",
@@ -100,14 +101,44 @@ def topology(directory, problem):
     topo = yaml.safe_load((directory / problem["lab_topology"]).read_text())
     nodes = topo["topology"]["nodes"]
     labels = (problem.get("design") or {}).get("links", {})
+    kinds = {name: ros.node_kind(topo, name) for name in nodes}
     links = []
     for link in topo["topology"].get("links", []):
         a, b = link["endpoints"]
         label = labels.get(f"{a} {b}") or labels.get(f"{b} {a}")
-        links.append({"a": a.split(":")[0], "a_if": a.split(":")[1],
-                      "b": b.split(":")[0], "b_if": b.split(":")[1], "label": label})
-    return {"nodes": [{"id": name, "role": node_role(name, spec)} for name, spec in nodes.items()],
+        (an, ai), (bn, bi) = a.split(":"), b.split(":")
+        # Nama interface seperti di dalam perangkat (RouterOS: eth1 container = ether2).
+        links.append({"a": an, "a_if": ros.display_interface(kinds[an], ai),
+                      "b": bn, "b_if": ros.display_interface(kinds[bn], bi), "label": label})
+    return {"nodes": [{"id": name, "role": node_role(name, spec), "kind": kinds[name]}
+                      for name, spec in nodes.items()],
             "links": links}
+
+
+def lab_images(directory, problem):
+    topo = yaml.safe_load((directory / problem["lab_topology"]).read_text())["topology"]
+    specs = [topo.get("defaults") or {}, *(topo.get("kinds") or {}).values(), *(topo.get("nodes") or {}).values()]
+    return sorted({spec["image"] for spec in specs if spec and spec.get("image")})
+
+
+def missing_images(directory, problem):
+    """Image container lab yang belum ada di docker lokal (None = docker tidak bisa diakses)."""
+    missing = []
+    for image in lab_images(directory, problem):
+        try:
+            proc = subprocess.run(["docker", "image", "inspect", image], capture_output=True, timeout=5)
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        if proc.returncode != 0:
+            missing.append(image)
+    return missing
+
+
+def image_hint(image):
+    """Cara mendapatkan image: RouterOS dibangun lokal, sisanya diunduh saat deploy."""
+    if image.startswith("vrnetlab/mikrotik_routeros:"):
+        return f"platform/build-routeros-image.sh {image.split(':', 1)[1]}"
+    return None
 
 
 def brief_parts(directory, problem):
@@ -192,6 +223,39 @@ def port_open(port):
         return sock.connect_ex(("127.0.0.1", port)) == 0
 
 
+def lab_ttyd_on(port, directory):
+    """Apakah proses di port ini ttyd milik P-lab untuk lab ini (mis. dari `platform/serve`)?
+
+    Port yang terbuka saja tidak cukup: paket ttyd di Debian/Ubuntu memasang
+    service systemd `ttyd` yang menjalankan `login` (read-only) di port 7681,
+    yaitu port default kita. Kalau dipakai, pemain melihat `login:` dan tidak
+    bisa mengetik. Jadi ttyd luar hanya dipakai kalau command line-nya
+    menjalankan lab-shell untuk direktori lab yang sama.
+    """
+    target = str(Path(directory).resolve())
+    for proc in Path("/proc").iterdir():
+        if not proc.name.isdigit():
+            continue
+        try:
+            argv = (proc / "cmdline").read_bytes().split(b"\0")
+        except OSError:
+            continue
+        args = [a.decode(errors="replace") for a in argv if a]
+        if (args and Path(args[0]).name == "ttyd" and "-p" in args[:-1]
+                and args[args.index("-p") + 1] == str(port)
+                and any(Path(a).name == "lab-shell" for a in args)
+                and any(a == target or (a.startswith("/") and Path(a).resolve() == Path(target)) for a in args)):
+            return True
+    return False
+
+
+def free_port(start, tries=50):
+    for port in range(start, start + tries):
+        if not port_open(port):
+            return port
+    raise RuntimeError(f"tidak ada port kosong untuk ttyd di {start}-{start + tries - 1}")
+
+
 class Runtime:
     """ttyd + checkpoint watcher untuk sesi aktif. Satu soal aktif dalam satu waktu."""
 
@@ -202,6 +266,7 @@ class Runtime:
         self.ttyd = None
         self.watcher = None
         self.external_ttyd = False
+        self.port = TTYD_PORT
 
     def ensure(self, directory, session):
         with self.lock:
@@ -214,16 +279,25 @@ class Runtime:
             self.watcher = subprocess.Popen(
                 [sys.executable, str(HERE / "checkpoints.py"), "watch", str(directory)],
                 stdout=log, stderr=subprocess.STDOUT)
-            # ttyd boleh tetap dari `platform/serve` yang sudah berjalan.
-            self.external_ttyd = port_open(TTYD_PORT)
-            if not self.external_ttyd and shutil.which("ttyd"):
+            # ttyd dari `platform/serve` untuk lab yang sama boleh dipakai ulang.
+            # Proses lain di port default (mis. service ttyd bawaan distro): cari port lain.
+            self.external_ttyd = port_open(TTYD_PORT) and lab_ttyd_on(TTYD_PORT, directory)
+            if self.external_ttyd:
+                self.port = TTYD_PORT
+            elif shutil.which("ttyd"):
+                self.port = free_port(TTYD_PORT)
                 self.ttyd = subprocess.Popen(
-                    ["ttyd", "-W", "-a", "-i", "lo", "-p", str(TTYD_PORT),
+                    ["ttyd", "-W", "-a", "-i", "lo", "-p", str(self.port),
                      "-t", "titleFixed=P-lab", "-t", "disableLeaveAlert=true",
                      "-t", "fontSize=13", "-t", "fontFamily=JetBrains Mono, ui-monospace, monospace",
                      "-t", "theme=" + json.dumps(TTYD_THEME),
                      str(HERE / "lab-shell"), str(directory)],
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                # Tunggu sebentar sampai ttyd listen, supaya iframe tidak memuat port kosong.
+                for _ in range(20):
+                    if port_open(self.port) or self.ttyd.poll() is not None:
+                        break
+                    time.sleep(0.1)
             return self.status()
 
     def _alive(self):
@@ -241,13 +315,14 @@ class Runtime:
                     proc.kill()
         self.watcher = self.ttyd = None
         self.lab_dir = self.session = None
+        self.external_ttyd = False
 
     def stop(self):
         with self.lock:
             self._stop_locked()
 
     def status(self):
-        return {"ttyd_port": TTYD_PORT, "ttyd": self.external_ttyd or bool(self.ttyd and self.ttyd.poll() is None),
+        return {"ttyd_port": self.port, "ttyd": self.external_ttyd or bool(self.ttyd and self.ttyd.poll() is None),
                 "ttyd_available": bool(shutil.which("ttyd")) or self.external_ttyd,
                 "watcher": bool(self.watcher and self.watcher.poll() is None)}
 
@@ -367,15 +442,15 @@ class DeployJobs:
     def _run(self, job, directory):
         RUNTIME.stop()  # watcher memegang .state/watch.log; reset.sh menghapus .state/
         try:
-            proc = subprocess.Popen([str(directory / "reset.sh")], cwd=directory, stdin=subprocess.DEVNULL,
-                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-            for line in proc.stdout:
-                line = ANSI.sub("", line).rstrip()
-                if line.startswith("==> "):
-                    job["step"] = line[4:].strip()
-                elif line:
-                    job["log"] = (job["log"] + [line])[-30:]
-            code = proc.wait(timeout=600)
+            with subprocess.Popen([str(directory / "reset.sh")], cwd=directory, stdin=subprocess.DEVNULL,
+                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True) as proc:
+                for line in proc.stdout:
+                    line = ANSI.sub("", line).rstrip()
+                    if line.startswith("==> "):
+                        job["step"] = line[4:].strip()
+                    elif line:
+                        job["log"] = (job["log"] + [line])[-30:]
+                code = proc.wait(timeout=600)
         except (OSError, subprocess.TimeoutExpired) as error:
             job.update(status="error", error=str(error), finished=time.time())
             return
@@ -489,6 +564,9 @@ def lab_detail(lab_id: str):
     problem = yaml.safe_load((directory / "problem.yaml").read_text())
     return {**lab_card(directory), "brief": brief_parts(directory, problem),
             "topology": topology(directory, problem),
+            # Image yang harus dibangun lokal (mis. RouterOS); image biasa diunduh containerlab saat deploy.
+            "missing_images": [{"image": i, "build": image_hint(i)} for i in (missing_images(directory, problem) or [])
+                               if image_hint(i)],
             "weights": {**evaluate.scoring.DEFAULT_WEIGHTS, **(problem.get("scoring") or {}).get("weights", {})},
             "history": archived_evaluations(directory)}
 
@@ -547,6 +625,10 @@ def deploy(lab_id: str):
     support = deploy_support()
     if not support["available"]:
         raise HTTPException(409, support["reason"])
+    problem = yaml.safe_load((directory / "problem.yaml").read_text())
+    unbuilt = [i for i in (missing_images(directory, problem) or []) if image_hint(i)]
+    if unbuilt:
+        raise HTTPException(409, f"Image {', '.join(unbuilt)} belum dibangun. Jalankan: {image_hint(unbuilt[0])}")
     if DEPLOYS.busy(exclude=lab_id):
         raise HTTPException(409, "Lab lain sedang di-deploy.")
     job = JOBS.get(lab_id, Lab(directory).session)

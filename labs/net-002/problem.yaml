@@ -1,0 +1,97 @@
+id: net-002
+category: network-engineer
+title: "Subnetting Dasar"
+difficulty: beginner
+lab_topology: topo-2router.clab.yaml
+brief: brief.md
+ui:
+  summary: "Server baru di LAN-B tidak bisa dijangkau dari kantor pusat. Router memakai MikroTik RouterOS."
+  ticket: "#2210"
+nos: routeros                     # aturan RouterOS + host Linux (include linux-bridge)
+deploy:
+  ready_timeout: 300              # RouterOS (VM) butuh waktu boot sebelum verify bisa sehat
+
+parameters:
+  router: r2
+  port: ether3
+  prefix: 25
+fault_injection:
+  script: inject.sh               # inject.sh <router> <port> <prefix>
+  description: "Prefix alamat LAN-B di {{router}} {{port}} diubah dari /24 menjadi /{{prefix}}; host-b (10.20.0.130) jadi di luar subnet yang dianggap terhubung langsung oleh {{router}}"
+  expected_fix: "/ip address set [find interface={{port}}] address=10.20.0.1/24 di {{router}}"
+goal_state:
+  check: "host-a dan host-b saling menjangkau, alamat dan rute tetap sesuai desain"
+  verify_script: verify.sh
+
+# Command RouterOS tercatat dalam bentuk lengkap (/ip address print), apa pun konteks menunya.
+checkpoints:
+  - id: diagnose
+    label: Diagnosis awal
+    type: command_match
+    node: any
+    # Hanya perintah baca: lookahead menolak `ip route add/del ...` di host.
+    pattern: '^(/ip (address|route|arp) print\b|/tool traceroute\b|/traceroute\b|traceroute\b|tracepath\b|ip (-\S+ )*(a|addr|address|r|route|neigh)\b(?!.*\b(add|del|delete|change|replace|flush)\b))'
+  - id: locate_fault
+    label: Lokasi fault
+    hidden: true
+    type: command_match
+    node: "{{router}}"
+    pattern: '^/ip address print\b'
+  - id: apply_fix
+    label: Terapkan perbaikan
+    type: state_check
+    node: "{{router}}"
+    command: ':foreach a in=[/ip address find where interface={{port}}] do={:put [/ip address get $a address]}'
+    expect_regex: '(?m)^10\.20\.0\.1/24\s*$'
+  - id: verify_fix
+    label: Verifikasi ujung ke ujung
+    type: command_match
+    any_of:
+      - {node: host-a, pattern: '^ping .*\b10\.20\.0\.130\b'}
+      - {node: host-b, pattern: '^ping .*\b10\.10\.0\.10\b'}
+    after: apply_fix
+    expect_exit: 0
+  - id: reasoning
+    label: Penalaran
+    type: llm_judge
+    criteria: "User mencocokkan alamat host-b dengan prefix/subnet di interface router sebelum mengubah konfigurasi"
+    require_evidence: true
+
+scoring:
+  weights: {correctness: 0.3, efficiency: 0.2, methodology: 0.4, safety: 0.1}
+  process_gate:
+    requires: [diagnose, locate_fault]
+    before: apply_fix
+    applies_to: [correctness, efficiency]
+  safety:
+    - id: change_host_ip
+      severity: major
+      reason: "Mengubah alamat host/server yang sudah sesuai desain (klien lain ikut putus)"
+      any_of:
+        - {node: host-a, key: '^addr '}
+        - {node: host-b, key: '^addr '}
+    - id: route_patch
+      severity: minor
+      reason: "Mengubah tabel routing yang sudah benar (menambal gejala, bukan penyebab)"
+      key: '^route$'
+    - id: touch_healthy_router
+      severity: minor
+      reason: "Mengubah alamat di r1, padahal r1 tidak bermasalah"
+      any_of:
+        - {node: r1, key: '^ip address'}
+    - id: disable_interface
+      severity: major
+      reason: "Mematikan interface (outage di segmen itu)"
+      pattern: '^/interface (?:\S+ )*disable\b|^ip\s+(?:-\S+\s+)*link\s+set\s+\S+\s+.*\bdown\b'
+
+design:
+  links:
+    "host-a:eth1 r1:eth1": "LAN-A · 10.10.0.0/24"
+    "r1:eth2 r2:eth1": "10.0.12.0/30"
+    "r2:eth2 host-b:eth1": "LAN-B · 10.20.0.0/24"
+expert_baseline:
+  state_changes: 1
+  typical_duration_min: 8
+hints:
+  - {level: 1, penalty: 3, text: "Rute antar-router sudah benar sejak awal. Fokus pada segmen tempat server berada: apakah router dan server sepakat soal ukuran subnet-nya?"}
+  - {level: 2, penalty: 7, text: "Lihat prefix alamat di {{port}} pada {{router}}, lalu hitung: apakah 10.20.0.130 masih termasuk di dalam subnet itu?"}

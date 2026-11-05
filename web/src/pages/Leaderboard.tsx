@@ -7,7 +7,7 @@ import s from "./Leaderboard.module.css";
 
 // P-lab berjalan lokal untuk satu orang, jadi papan ini membandingkan kamu dengan
 // golden transcript tiap soal (expert, jalan pintas, trial-and-error, nyontek).
-// Leaderboard antar-pengguna menunggu mode multi-user (rencana.md bagian 9).
+// Leaderboard antar-pengguna menunggu mode multi-user.
 
 function meta(e: LeaderEntry) {
   const method = e.methodology_avg === null ? "methodology —" : `methodology ${e.golden ? "" : "rata-rata "}${e.methodology_avg}`;

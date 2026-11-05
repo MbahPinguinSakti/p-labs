@@ -348,8 +348,45 @@ checkpoint, atau hint yang belum dibuka. Sisanya tanggung jawab penulis soal:
 ## NOS selain Linux bridge
 
 `platform/nos/<nos>.yaml` mendefinisikan command mana yang dianggap mengubah
-state dan bagaimana menormalkannya menjadi `key`. Untuk NOS lain, misalnya FRR
-atau cEOS, salin `linux-bridge.yaml` lalu sesuaikan pola-polanya. Perlu diingat
-bahwa perekaman command saat ini memakai hook bash di node (`lab-rc.sh`),
-sehingga CLI vendor yang bukan bash belum terekam per command (lihat
-rencana.md bagian 10.2).
+state dan bagaimana menormalkannya menjadi `key`. File NOS bisa menggabungkan
+aturan NOS lain dengan `include: [linux-bridge]`. Ini berguna kalau lab berisi
+router vendor sekaligus host Linux.
+
+Perekaman command memakai hook bash di node (`lab-rc.sh`), jadi hanya bekerja
+di node yang punya bash. Untuk CLI vendor, dibutuhkan shell proxy di host,
+seperti yang sudah ada untuk RouterOS.
+
+### Lab MikroTik RouterOS
+
+Contoh lengkapnya ada di `labs/net-002` dan `labs/net-003`. Bedanya dengan lab
+Linux:
+
+- **Topologi**: router memakai `kind: mikrotik_ros` dengan image
+  `vrnetlab/mikrotik_routeros:<versi>` ([cara membangunnya](instalasi.md#lab-mikrotik-routeros)).
+  Taruh `network-mode: none` di `kinds.linux`, bukan di `defaults`, karena
+  router butuh jaringan management containerlab untuk SSH.
+- **Interface**: `eth1` di `.clab.yaml` = `ether2` di RouterOS (`ether1` dipakai
+  vrnetlab untuk management). Web UI dan `design.links` memakai nama
+  `.clab.yaml`; diagram menampilkan nama RouterOS.
+- **Konfigurasi sehat** ditulis sebagai script RouterOS di
+  `config/<router>.rsc`, lalu dipasang saat boot lewat `startup-config:`.
+- **`deploy.ready_timeout`** (detik) di `problem.yaml`: `reset-lab` menunggu
+  healthcheck container dan mengulang `verify.sh` sampai sehat, karena router
+  perlu boot dan protokol routing perlu konvergen. Gunakan 300–420.
+- **`nos: routeros`**: aturan RouterOS ditambah aturan host Linux.
+- **inject/verify** menjalankan command di router dengan
+  `platform/ros.py exec . <node> '<command>'` (exit 1 kalau RouterOS menjawab
+  error, exit 2 kalau SSH gagal). Untuk data yang mau diperiksa, pakai
+  scripting supaya output-nya mudah diproses, misalnya
+  `:put [/interface get ether3 mtu]`.
+- **Checkpoint**: shell pemain (`ros.py shell`) mencatat command dalam **bentuk
+  lengkap**. Kalau pemain mengetik `print` di dalam `/ip address`, yang tercatat
+  adalah `/ip address print`. Jadi regex cukup mencocokkan path absolut:
+  `'^/routing ospf neighbor print\b'`. `command` di `state_check` ditulis dalam
+  sintaks RouterOS, dan otomatis dijalankan lewat SSH.
+- **Ping dari router** selalu tercatat dengan exit 0, walaupun semua paketnya
+  timeout, karena RouterOS tidak menganggapnya error. Untuk checkpoint
+  verifikasi, pakai ping dari host Linux.
+- **`inject.sh`** sebaiknya memastikan fault benar-benar efektif (misalnya
+  host tujuan tidak lagi terjangkau), lalu gagal dengan pesan jelas kalau
+  tidak. Perilaku RouterOS kadang berbeda dari RFC atau dari vendor lain.

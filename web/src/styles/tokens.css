@@ -1,0 +1,71 @@
+/* P-lab design tokens. Sumber: koleksi Tokens + text style di Figma project_lab. */
+:root{
+  /* Warna (variabel Figma color/*) */
+  --color-bg:#090B0A;
+  --color-surface-1:#111513;
+  --color-surface-2:#171C19;
+  --color-border:#252C28;
+  --color-text:#ECF3EE;
+  --color-text-soft:#A5B2AA;
+  --color-text-muted:#8B968F;
+  --color-accent:#5FF0B0;
+  --color-accent-subtle:#0F2A20;
+  --color-accent-border:#1D5A41;
+  --color-on-accent:#04120C;
+  --color-gold:#F0BD4F;
+  --color-ember:#FF7B47;
+  --color-hero-border:#1F3A2E;
+
+  /* Warna tambahan: belum menjadi variabel di Figma */
+  --color-link:#2F6B52;
+  --color-hero-a:#0E2A20;
+  --color-hero-b:#0F1A15;
+  --color-hero-c:#16130A;
+
+  /* Jarak (space/*) */
+  --space-xs:4px;
+  --space-sm:8px;
+  --space-md:12px;
+  --space-lg:16px;
+  --space-xl:22px;
+  --space-2xl:26px;
+  --space-3xl:32px;
+  --space-4xl:44px;
+
+  /* Radius (radius/*) */
+  --radius-mark:10px;
+  --radius-control:12px;
+  --radius-chip:14px;
+  --radius-node:18px;
+  --radius-panel:20px;
+  --radius-card:22px;
+  --radius-hero:28px;
+  --radius-pill:999px;
+
+  /* Font */
+  --font-ui:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-code:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+
+  /* Motion */
+  --ease-out:cubic-bezier(.22,1,.36,1);
+  color-scheme:dark;
+}
+
+/* Text style sebagai kelas utilitas */
+.t-display{font-family:var(--font-ui);font-weight:800;font-size:44px;line-height:1.05;letter-spacing:-0.03em}
+.t-heading-h1{font-family:var(--font-ui);font-weight:700;font-size:28px;line-height:1.2;letter-spacing:-0.02em}
+.t-heading-h2{font-family:var(--font-ui);font-weight:700;font-size:22px;line-height:1.2;letter-spacing:-0.02em}
+.t-heading-stat{font-family:var(--font-ui);font-weight:700;font-size:24px;line-height:1.2;letter-spacing:-0.02em}
+.t-heading-brand{font-family:var(--font-ui);font-weight:700;font-size:19px;line-height:normal;letter-spacing:-0.02em}
+.t-body-title{font-family:var(--font-ui);font-weight:600;font-size:16px;line-height:normal;letter-spacing:0em}
+.t-body-body{font-family:var(--font-ui);font-weight:400;font-size:15px;line-height:1.55;letter-spacing:0em}
+.t-body-small{font-family:var(--font-ui);font-weight:400;font-size:14px;line-height:1.5;letter-spacing:0em}
+.t-ui-label{font-family:var(--font-ui);font-weight:500;font-size:14px;line-height:normal;letter-spacing:0em}
+.t-ui-button{font-family:var(--font-ui);font-weight:700;font-size:15px;line-height:normal;letter-spacing:0em}
+.t-ui-chip{font-family:var(--font-ui);font-weight:600;font-size:13px;line-height:normal;letter-spacing:0em}
+.t-ui-caption{font-family:var(--font-ui);font-weight:400;font-size:13px;line-height:normal;letter-spacing:0em}
+.t-ui-caption-strong{font-family:var(--font-ui);font-weight:500;font-size:13px;line-height:normal;letter-spacing:0em}
+.t-ui-overline{font-family:var(--font-ui);font-weight:600;font-size:11px;line-height:normal;letter-spacing:0.12em}
+.t-landing-hero{font-family:var(--font-ui);font-weight:800;font-size:64px;line-height:1.04;letter-spacing:-0.035em}
+.t-landing-lead{font-family:var(--font-ui);font-weight:400;font-size:18px;line-height:1.6;letter-spacing:0em}
+.t-ui-code{font-family:var(--font-code);font-weight:400;font-size:13px;line-height:1.65;letter-spacing:0em}
