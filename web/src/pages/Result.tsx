@@ -118,7 +118,9 @@ function Explain({ r }: { r: Evaluation }) {
   const eff = r.rule_based.efficiency;
   const verify = r.rule_based.verify;
   const parts: string[] = [];
-  if (gate) {
+  if (gate?.waived) {
+    parts.push(`Process gate tidak diterapkan: ${gate.waived}; diagnosis di Winbox tidak terekam`);
+  } else if (gate) {
     parts.push(
       gate.factor === 1
         ? `Process gate ×1.0: diagnosis terjadi sebelum fix, jadi ${gate.applies_to.join(" dan ")} dihitung penuh`
@@ -275,12 +277,15 @@ function Timeline({ timeline, r, ref }: { timeline: TimelineEntry[]; r: Evaluati
                 <span>{e.node}</span>
                 <code className={e.exit ? "muted" : undefined}>{e.command}</code>
                 <span className={s.flags}>
+                  {e.source && <span className="chip chip-gold">{e.source}</span>}
                   {e.state_change.length > 0 && <span className="chip">ubah state</span>}
                   {e.rework.length > 0 && <span className="chip chip-ember">rework</span>}
                   {e.exit !== null && e.exit !== 0 && <span className="chip">exit {e.exit}</span>}
                 </span>
               </summary>
-              <pre className={s.output}>{e.output || "(tidak ada output terekam)"}</pre>
+              <pre className={s.output}>
+                {e.output || (e.source ? `(perubahan dari ${e.source}, direkam dari konfigurasi router)` : "(tidak ada output terekam)")}
+              </pre>
             </details>
           </li>
         ))}

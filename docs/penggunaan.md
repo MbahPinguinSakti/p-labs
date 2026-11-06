@@ -73,6 +73,29 @@ lewat SSH, karena RouterOS tidak bisa dipasangi perekam seperti host Linux.
 Akibatnya, mode interaktif khusus RouterOS (editor `edit`, `/system console`,
 Safe Mode dengan Ctrl-X) tidak tersedia.
 
+#### Memakai Winbox
+
+Router juga bisa dikonfigurasi lewat **Winbox** (atau WebFig). Selama sesi,
+panel **Winbox** di halaman sesi menampilkan alamat tiap router
+(mis. `172.20.20.3:8291`, login `admin`/`admin`).
+
+- Alamat itu ada di jaringan Docker mesin lab. Dari komputer lain, buka tunnel
+  dulu: `ssh -L 8291:172.20.20.3:8291 <mesin-lab>`, lalu sambungkan Winbox ke
+  `127.0.0.1`.
+- Setiap **perubahan** dari Winbox direkam: P-lab membandingkan konfigurasi
+  router tiap ±3 detik dan mencatat selisihnya sebagai command RouterOS,
+  dengan label `winbox` di daftar aktivitas. Perubahan itu dinilai seperti
+  command terminal (efficiency, safety, checkpoint).
+- Yang **tidak** terekam: aktivitas membaca. Membuka tabel IP › Addresses di
+  Winbox tidak meninggalkan jejak, jadi checkpoint diagnosis tidak tercapai.
+  Kalau perbaikannya dibuat lewat Winbox, process gate tidak diterapkan (lihat
+  [Cara skor dihitung](#cara-skor-dihitung)). Evaluator LLM diberi tahu
+  keterbatasan ini dan tidak memberi band methodology tertinggi, karena
+  prosesnya tidak teramati.
+
+Mau proses diagnosismu ikut dinilai? Lakukan pengecekan di terminal (mis.
+`/ip address print`), lalu boleh tetap memperbaiki lewat Winbox.
+
 ### 4. Hint
 
 **Minta hint** membuka hint level berikutnya. Setiap level memotong skor akhir
@@ -114,6 +137,9 @@ methodology 40%, safety 10%.
 terbukti mendiagnosis *sebelum* memperbaiki. Kalau kamu langsung memperbaiki
 tanpa melihat apa pun, keduanya dikali 0. Tujuannya supaya menebak lalu
 kebetulan benar tidak mengalahkan kerja yang sistematis.
+Pengecualian: kalau perbaikan dibuat lewat Winbox, gate tidak diterapkan,
+karena diagnosis di Winbox memang tidak bisa direkam. Hasilnya diberi catatan
+"mode GUI".
 
 ## Membaca hasil
 

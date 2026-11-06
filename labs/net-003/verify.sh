@@ -11,7 +11,7 @@ cd "$(dirname "$0")"
 
 LAB=net003
 c() { echo "clab-${LAB}-$1"; }
-PY=../../.venv/bin/python; [[ -x $PY ]] || PY=python3
+PY="$(cd ../.. && pwd)/.venv/bin/python"; [[ -x $PY ]] || PY=python3
 ros() { "$PY" ../../platform/ros.py exec . "$@" 2>/dev/null | tr -d '\r'; }
 fail() { printf '{"problem": "net-003", "error": "%s"}\n' "$1"; exit 2; }
 

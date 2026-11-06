@@ -6,6 +6,45 @@ Format tiap entri: **apa** yang berubah, **kenapa** (gejala/temuan), **file**, d
 
 ---
 
+## 2026-11-06 (8): Fitur: perubahan dari Winbox ikut direkam dan dinilai
+
+**Kenapa**: semua perekaman lewat `ros.py shell`. Winbox/WebFig/API (service-nya aktif secara default, port 8291 terbuka di IP management) melewati proxy itu, jadi pemain Winbox dirugikan (process gate gagal) sekaligus bisa lolos dari aturan safety. User memilih mendukung Winbox, bukan memblokirnya.
+
+### Ditambahkan
+- `platform/guiwatch.py`: thread per router di dalam `checkpoints.py watch`.
+  - Tiap 3 detik mengambil `/export terse` dan membandingkannya dengan snapshot sebelumnya. Selisihnya diterjemahkan jadi command RouterOS lengkap: entri yang diedit → `set [find interface=…]`, entri baru → `add`, entri hilang → `remove`, `[ find default-name=ether3 ]` → `ether3`. Akibatnya aturan NOS, safety, efficiency, dan `state_check` langsung berlaku.
+  - Kalau ada command tulis dari terminal P-lab di node yang sama dalam jendela itu (+2 detik jeda), selisihnya dianggap dari terminal dan tidak dicatat dobel.
+  - Login `via winbox/web/api/...` dari `/log` → event `gui_login` dan label `source`. Login lewat SSH diabaikan, karena tidak bisa dibedakan dari `ros.py`/state_check.
+  - `checkpoints.py watch --no-gui` untuk mematikannya.
+- Penilaian (`evaluate.py`, `scoring.waive_gate`): `rule_based.gui` berisi via, daftar perubahan, dan apakah fix dibuat dari luar terminal. Process gate **hanya** dibebaskan kalau event fix-nya sendiri berasal dari GUI. Login Winbox lalu memperbaiki di terminal tanpa diagnosis tetap kena gate.
+- Prompt evaluator: bagian "Pemain memakai GUI" (aktivitas membaca tidak terekam, jangan simpulkan tanpa diagnosis, jangan beri band `sistematis`). Timeline memberi tag `[WINBOX]`.
+- Web: panel **Winbox** di halaman sesi (IP:8291 per router, login, cara tunnel dari komputer lain), badge sumber di Aktivitas dan timeline Hasil, serta keterangan gate yang dibebaskan.
+- Docs: `penggunaan.md` (Memakai Winbox, pengecualian gate), `arsitektur.md`.
+
+### Batasan
+- Membaca di GUI tidak terekam sama sekali, jadi checkpoint `command_match` diagnosis tidak bisa dicapai lewat Winbox.
+- Waktu event GUI = waktu terdeteksi (terlambat ≤ ~5 detik), bukan waktu klik.
+- Perubahan GUI dan terminal di node yang sama dalam jendela beberapa detik → perubahan GUI-nya tidak tercatat (sengaja dipilih supaya tidak dobel).
+
+### Verifikasi
+- `platform/tests/test_guiwatch.py` (16 test): diff export (edit/add/remove/kutipan/interface/singleton/disable), kecocokan dengan NOS dan safety net-002, deteksi command tulis terminal, baseline login, serta sesi net-002 sintetis (fix lewat winbox → gate dibebaskan; fix di terminal → gate tetap). Seluruh suite: 92 test OK. `tsc` + `npm run build` OK, golden net-001 `--rules-only` semua lolos.
+- **Belum diuji di router sungguhan**: router net-002 mati sejak mesin reboot, dan deploy ulang butuh `sudo`.
+
+## 2026-11-06 (7): Perbaikan: inject net-002 gagal "Fault tidak efektif"
+
+**Gejala**: `reset.sh` net-002 berhenti dengan `Fault tidak efektif: host-b masih terjangkau setelah inject.`, plus `RuntimeWarning: Unexpected value in sys.prefix`.
+
+**Penyebab**:
+- Fault sebenarnya sudah terpasang (r2 ether3 = `/25`, beberapa detik kemudian ping dibalas `Net Unreachable`). Rute connected di RouterOS baru berubah sesaat *setelah* `/ip address set` kembali. `ping -c 2` langsung dijalankan dan cukup satu balasan untuk exit 0, jadi pengecekan kalah balapan (race).
+- Warning muncul karena Python venv dipanggil lewat path relatif yang belum dinormalisasi (`labs/net-002/../../.venv/bin/python`). Python membandingkannya dengan `sys.prefix` yang sudah dinormalisasi.
+
+### Diperbaiki
+- `labs/net-002/inject.sh`: cek putus diulang hingga 10× dengan jeda 1 detik (pola yang sama dengan net-003).
+- `labs/net-00{2,3}/{inject,verify}.sh`: `PY` memakai path absolut `$(cd ../.. && pwd)/.venv/bin/python`. Sengaja tidak memakai `realpath`, karena realpath mengikuti symlink ke `/usr/bin/python3` dan keluar dari venv.
+
+### Verifikasi
+- r2 dikembalikan ke `/24` (host-b terjangkau), lalu `./inject.sh` → `Fault injected.`, exit 0, tanpa warning.
+
 ## 2026-11-06 (6): Perbaikan: build image RouterOS di VM Ubuntu
 
 **Gejala** (laporan user, VM Ubuntu):

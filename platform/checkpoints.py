@@ -15,6 +15,10 @@ Tipe matcher:
                  expect_regex. Dievaluasi setiap ada command di node itu,
                  karena state hanya berubah lewat command.
   llm_judge      dinilai evaluator LLM (Fase 2); di sini selalu pending.
+
+Untuk lab RouterOS, watch juga menjalankan guiwatch.py: perubahan konfigurasi
+dari Winbox/WebFig/API ditulis sebagai event dengan field `source`, sehingga
+ikut dicocokkan di sini seperti command terminal.
 """
 
 if __name__ == "__main__":
@@ -224,6 +228,10 @@ def cmd_watch(args):
     tail = EventTail(lab.events_dir)
     print(f"watch {lab.problem_id} sesi {lab.session} "
           f"({len(matcher.hits)}/{len(lab.checkpoints)} checkpoint sudah tercapai)", flush=True)
+    if not args.no_gui:
+        import guiwatch  # perubahan RouterOS dari Winbox/WebFig/API ikut jadi event
+        for watcher in guiwatch.start(lab):
+            print(f"guiwatch {watcher.node}: memantau perubahan di luar terminal", flush=True)
 
     # Event lama (mis. watcher restart): command_match di-replay, state_check
     # tidak, karena state masa lalu tidak bisa diperiksa ulang.
@@ -276,6 +284,7 @@ def main():
     w = sub.add_parser("watch")
     w.add_argument("problem_dir")
     w.add_argument("--interval", type=float, default=0.5)
+    w.add_argument("--no-gui", action="store_true", help="jangan pantau perubahan RouterOS di luar terminal")
     w.set_defaults(func=cmd_watch)
     s = sub.add_parser("status")
     s.add_argument("problem_dir")

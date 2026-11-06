@@ -86,7 +86,9 @@ export type LiveState = {
   started?: number | null;
   created?: number | null;
   commands?: number;
-  activity?: { id: string; node: string; command: string; ts: number; exit: number | null; state_change: boolean }[];
+  // source: perubahan dari luar terminal (Winbox/WebFig/API), direkam dari konfigurasi router.
+  activity?: { id: string; node: string; command: string; ts: number; exit: number | null; state_change: boolean; source?: string | null }[];
+  gui_access?: { node: string; host: string; port: number; user: string; password: string }[];
   checkpoints?: LiveCheckpoint[];
   hints?: { level: number; penalty: number; opened: boolean; text: string | null }[];
   evaluated?: boolean;
@@ -107,6 +109,7 @@ export type TimelineEntry = {
   node: string;
   command: string;
   exit: number | null;
+  source?: string | null;
   state_change: string[];
   rework: string[];
   hint_level?: number | null;
@@ -124,7 +127,9 @@ export type Evaluation = {
     safety: { score: number; violations: { id: string; severity: string; reason: string; events?: string[]; event?: string }[] };
     hints: { levels_used: number[]; penalty: number };
     checkpoints: { id: string; type: string; hit: boolean; event: string | null; ts: number | null }[];
-    process_gate: { factor: number; required: string[]; before: string; met: string[]; missing: string[]; applies_to: string[] } | null;
+    // waived: gate tidak berlaku karena fix dibuat lewat GUI (lihat platform/guiwatch.py).
+    process_gate: { factor: number; required: string[]; before: string; met: string[]; missing: string[]; applies_to: string[]; waived?: string } | null;
+    gui?: { used: boolean; via: string[]; changes: string[]; fix_event: string | null; fix_source: string | null };
   };
   llm: {
     methodology: { band: string; score: number; rationale: string; evidence: { event: string; note: string }[] };

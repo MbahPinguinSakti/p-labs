@@ -9,7 +9,7 @@ ROUTER=${1:-r2}
 PORT=${2:-ether3}
 MTU=${3:-1400}
 PEER=${4:-r3}      # router di ujung lain link (hanya dicatat untuk evaluator)
-PY=../../.venv/bin/python; [[ -x $PY ]] || PY=python3
+PY="$(cd ../.. && pwd)/.venv/bin/python"; [[ -x $PY ]] || PY=python3
 ros() { "$PY" ../../platform/ros.py exec . "$@" | tr -d '\r'; }
 
 ros "$ROUTER" "/interface ethernet set $PORT mtu=$MTU" >/dev/null

@@ -341,6 +341,27 @@ def running_nodes(lab, nodes):
     return [n for n in nodes if lab.container(n) in up]
 
 
+_mgmt_ip = {}
+
+
+def gui_access(lab, running):
+    """Alamat Winbox router RouterOS yang sedang jalan. Perubahan dari Winbox ikut
+    dinilai lewat guiwatch.py. IP management berubah tiap deploy: cache per sesi."""
+    rows = []
+    for node in running or []:
+        if lab.kinds.get(node) != ros.ROS_KIND:
+            continue
+        key = (lab.session, node)
+        if key not in _mgmt_ip:
+            try:
+                _mgmt_ip[key] = ros.container_ip(lab.container(node))
+            except (ConnectionError, OSError, subprocess.TimeoutExpired):
+                continue
+        rows.append({"node": node, "host": _mgmt_ip[key], "port": 8291,
+                     "user": ros.USERNAME, "password": ros.PASSWORD})
+    return rows
+
+
 # --- penilaian (background) --------------------------------------------------------
 
 class EvalJobs:
@@ -508,14 +529,16 @@ def live_state(lab_id):
     hints = [{"level": h["level"], "penalty": h.get("penalty", 0), "opened": h["level"] in used,
               "text": h["text"] if h["level"] in used else None} for h in hint_list(lab)]
     job = JOBS.get(lab_id, lab.session)
+    running = running_nodes(lab, nodes)
     return {
         "lab": lab_id, "session": lab.session, "nodes": nodes,
-        "running": running_nodes(lab, nodes),
+        "running": running,
+        "gui_access": gui_access(lab, running),
         "started": events[0]["ts"] if events else None,
         "created": session_start(lab.session),
         "commands": len(commands),
         "activity": [{"id": e["id"], "node": e["node"], "command": e["command"], "ts": e["ts"],
-                      "exit": e["exit"], "state_change": bool(e["state_change"])}
+                      "exit": e["exit"], "state_change": bool(e["state_change"]), "source": e.get("source")}
                      for e in reversed(timeline[-12:])],
         "checkpoints": checkpoint_view(lab, lab.load_hits(), reveal=is_done),
         "hints": hints,
@@ -674,7 +697,7 @@ def session_result(lab_id: str, session: str):
         archived = evaluate.Session(path, live_verify=False)
     except evaluate.EvaluatorError as error:
         raise HTTPException(500, str(error))
-    timeline = [{k: e.get(k) for k in ("id", "t", "node", "command", "exit", "state_change", "rework",
+    timeline = [{k: e.get(k) for k in ("id", "t", "node", "command", "exit", "source", "state_change", "rework",
                                        "hint_level", "output")} for e in archived.timeline]
     labels = {cp["id"]: cp.get("label", cp["id"]) for cp in archived.lab.checkpoints}
     result.pop("llm_runs", None)

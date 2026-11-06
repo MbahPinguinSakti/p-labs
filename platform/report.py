@@ -43,6 +43,13 @@ def score_lines(result):
     if gate and gate["factor"] < 1:
         lines.append(f"\nProcess gate ×{gate['factor']}: {', '.join(gate['applies_to'])} hanya dikreditkan sebagian, "
                      f"karena checkpoint proses {gate['missing']} tidak tercapai sebelum `{gate['before']}`.")
+    if gate and gate.get("waived"):
+        lines.append(f"\nProcess gate tidak diterapkan: {gate['waived']}. Diagnosis di GUI tidak terekam, "
+                     f"jadi checkpoint proses {gate['missing']} tidak bisa diperiksa.")
+    gui = result["rule_based"].get("gui")
+    if gui and gui["used"]:
+        lines.append(f"\nMode GUI ({', '.join(gui['via']) or 'luar terminal'}): {len(gui['changes'])} perubahan "
+                     "direkam dari konfigurasi router; aktivitas membaca di GUI tidak terekam.")
     hints = result["rule_based"]["hints"]
     if hints["levels_used"]:
         lines.append(f"\nPenalti hint: -{hints['penalty']} (level {hints['levels_used']})")

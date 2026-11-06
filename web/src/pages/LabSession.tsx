@@ -382,6 +382,7 @@ function ActiveSession({ lab, state, connected }: { lab: LabDetail; state: LiveS
               />
             </div>
           </section>
+          <GuiAccess state={state} />
           <Activity state={state} />
         </div>
       </div>
@@ -564,12 +565,43 @@ function Activity({ state }: { state: LiveState }) {
               <span className={e.id.startsWith("H") ? "gold" : "accent"}>{e.id}</span>
               <span className={s.eventNode}>{e.node}</span>
               <span className={`${s.eventCmd} ${e.exit && e.exit !== 0 ? "muted" : ""}`} title={e.command}>
+                {e.source && <span className={s.eventSource}>{e.source}</span>}
                 {e.command}
               </span>
             </li>
           ))}
         </ul>
       )}
+    </section>
+  );
+}
+
+function GuiAccess({ state }: { state: LiveState }) {
+  const rows = state.gui_access ?? [];
+  if (rows.length === 0) return null;
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <h2>Winbox</h2>
+        <span className="panel-meta">
+          {rows[0].user} / {rows[0].password}
+        </span>
+      </div>
+      <ul className={s.guiList}>
+        {rows.map((r) => (
+          <li key={r.node}>
+            <span className={s.eventNode}>{r.node}</span>
+            <code>
+              {r.host}:{r.port}
+            </code>
+          </li>
+        ))}
+      </ul>
+      <p className={`soft ${s.guiNote}`}>
+        Perubahan dari Winbox ikut direkam dan dinilai, tapi membuka tabel di Winbox tidak terekam. Dari komputer lain,
+        buka tunnel dulu: <code>ssh -L 8291:{rows[0].host}:8291 {location.hostname}</code>, lalu Winbox ke{" "}
+        <code>127.0.0.1</code>.
+      </p>
     </section>
   );
 }

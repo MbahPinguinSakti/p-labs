@@ -224,7 +224,7 @@ def build_timeline(events, rules):
             seen.setdefault((ev["node"], k), []).append(f"E{n}")
         timeline.append({
             "id": f"E{n}", "ts": ev["ts"], "t": round(ev["ts"] - t0), "node": ev["node"],
-            "command": ev["data"], "exit": ev.get("exit"),
+            "command": ev["data"], "exit": ev.get("exit"), "source": ev.get("source"),
             "state_change": keys, "rework": rework, "output": ev.get("output"),
         })
     return timeline
@@ -243,7 +243,10 @@ def render_timeline(timeline, with_output=True):
             tag = "  [UBAH STATE: " + ", ".join(e["state_change"]) + "]"
             if e["rework"]:
                 tag += " [REWORK]"
-        out.append(f"{e['id']} +{mm:02d}:{ss:02d} {e['node']} exit={e['exit']} $ {e['command']}{tag}")
+        # Perubahan dari luar terminal (guiwatch.py): bukan diketik, tapi hasil
+        # terjemahan selisih konfigurasi router.
+        via = f" [{e['source'].upper()}]" if e.get("source") else ""
+        out.append(f"{e['id']} +{mm:02d}:{ss:02d} {e['node']}{via} exit={e['exit']} $ {e['command']}{tag}")
         if with_output and e.get("output"):
             out.extend("    | " + line for line in e["output"].splitlines())
     return "\n".join(out)

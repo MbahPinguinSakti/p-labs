@@ -31,7 +31,10 @@ dan diulang dari file.
    merekam input dan output mentah terminal.
 3. **Checkpoint live**: `checkpoints.py watch` membaca event baru, mencocokkan
    `command_match`, dan menjalankan `state_check` di node yang baru menerima
-   command. Hasilnya ditulis ke `checkpoints.jsonl`.
+   command. Hasilnya ditulis ke `checkpoints.jsonl`. Untuk lab RouterOS, watch
+   juga menjalankan `guiwatch.py`: konfigurasi router (`/export terse`)
+   dibandingkan berkala, dan perubahan yang tidak berasal dari terminal P-lab
+   (Winbox, WebFig, API) ditulis sebagai event command dengan field `source`.
 4. **Push ke UI**: server memantau ukuran dan mtime file di `.state/`. Kalau ada
    yang berubah, server mengirim state yang **sudah disaring**: tanpa ground
    truth, tanpa parameter, dan tanpa detail checkpoint `hidden`.
@@ -84,6 +87,7 @@ dan diulang dari file.
 | `lab-shell`, `lab-rc.sh`, `serve` | perekaman terminal |
 | `ros.py` | shell proxy RouterOS (prompt, konteks menu, SSH, event) + `exec` untuk inject/verify/state_check |
 | `checkpoints.py` | matcher checkpoint (watch live + status) |
+| `guiwatch.py` | rekam perubahan RouterOS dari luar terminal (Winbox/WebFig/API) sebagai event |
 | `hints.py`, `lab-hint` | hint berjenjang yang tercatat |
 | `transcript.py` | event → timeline E-id, klasifikasi perubahan state per NOS |
 | `scoring.py` | rumus deterministik |

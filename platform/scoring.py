@@ -96,6 +96,13 @@ def process_gate(checkpoints, config):
     }
 
 
+def waive_gate(gate, reason):
+    """Gate tidak berlaku: proses sebelum fix terjadi di tempat yang tidak terekam
+    (mis. fix lewat Winbox, sehingga diagnosis kemungkinan juga di Winbox, dan
+    membuka tabel di GUI tidak meninggalkan jejak). Yang hilang tetap dicatat."""
+    return {**gate, "factor": 1.0, "waived": reason}
+
+
 def credited(dimensions, gate):
     """Skor yang masuk ke skor akhir: dimensi di applies_to dikali faktor gate."""
     return {k: (None if v is None else

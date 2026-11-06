@@ -184,9 +184,30 @@ def deterministic_scores(session):
             "ts": hit["ts"] if hit else None,
         })
     gate = scoring.process_gate(checkpoints, scoring_config.get("process_gate"))
+    gui = gui_usage(session, checkpoints, gate)
+    if gate["factor"] < 1 and gui["fix_event"]:
+        gate = scoring.waive_gate(gate, f"fix dilakukan lewat {gui['fix_source']} ({gui['fix_event']})")
     return {"correctness": session.verify_result["correctness"], "verify": session.verify_result,
             "efficiency": efficiency, "safety": safety, "hints": hints, "checkpoints": checkpoints,
-            "process_gate": gate, "checkpoints_rescored": session.hit_diffs}
+            "process_gate": gate, "gui": gui, "checkpoints_rescored": session.hit_diffs}
+
+
+def gui_usage(session, checkpoints, gate):
+    """Apakah pemain bekerja di luar terminal (Winbox/WebFig/API, lihat guiwatch.py)?
+
+    fix_event: event fix (checkpoint `before` di process gate) kalau fix itu
+    sendiri dibuat dari luar terminal. Hanya kasus ini yang membebaskan process
+    gate: login Winbox lalu memperbaiki dari terminal tanpa diagnosis tetap kena gate.
+    """
+    by_id = {entry["id"]: entry for entry in session.timeline}
+    logins = sorted({event["via"] for event in session.events if event["type"] == "gui_login"})
+    changes = [entry["id"] for entry in session.timeline if entry.get("source")]
+    fix = next((c for c in checkpoints if c["id"] == gate.get("before") and c["event"]), None)
+    fix_entry = by_id.get(fix["event"]) if fix else None
+    external_fix = bool(fix_entry and fix_entry.get("source"))
+    return {"used": bool(logins or changes), "via": logins, "changes": changes,
+            "fix_event": fix_entry["id"] if external_fix else None,
+            "fix_source": fix_entry["source"] if external_fix else None}
 
 
 # --- prompt LLM ------------------------------------------------------------------
@@ -238,12 +259,31 @@ def build_prompt(session, rule_based):
         "## Hint yang dibuka pemain (penalti sudah dihitung otomatis)\n" + ("\n".join(
             f"- {entry['id']}: level {entry['hint_level']}, \"{hint_text.get(entry['hint_level'], '')}\""
             for entry in used_hints) or "(tidak ada)"),
+        gui_note(rule_based["gui"]),
         f"## Timeline sesi\n{n_commands} command, durasi ~{duration // 60} menit. "
         "Format: `ID +mm:ss node exit=<kode> $ command`, baris `|` = output yang dilihat pemain. "
         "Tag [UBAH STATE] dan [REWORK] dihitung otomatis.",
         render_timeline(session.timeline),
     ]
-    return "\n\n".join(parts)
+    return "\n\n".join(part for part in parts if part)
+
+
+def gui_note(gui):
+    """Konteks untuk LLM kalau pemain memakai GUI: aktivitas membaca tidak terekam."""
+    if not gui["used"]:
+        return ""
+    via = ", ".join(gui["via"]) or "di luar terminal P-lab"
+    return "\n".join([
+        f"## Pemain memakai GUI ({via})",
+        "Event bertanda [WINBOX]/[WEB]/[API]/[LUAR-TERMINAL] bukan diketik pemain: itu terjemahan otomatis "
+        "selisih konfigurasi router menjadi command RouterOS, dan waktunya bisa terlambat beberapa detik. "
+        "Aktivitas MEMBACA di GUI (membuka tabel address/route) tidak terekam sama sekali.",
+        "Jadi: jangan simpulkan pemain tidak mendiagnosis hanya karena tidak ada command baca. Nilai methodology "
+        "dari yang teramati: perubahan tepat sasaran, sedikit perubahan percobaan/rework, dan tidak menyentuh "
+        "bagian yang sehat. Karena proses diagnosisnya tidak teramati, jangan beri band `sistematis`; "
+        "sebutkan keterbatasan ini di rationale. Checkpoint llm_judge yang butuh bukti proses dinilai dari "
+        "bukti yang ada saja.",
+    ])
 
 
 def system_prompt():
