@@ -34,7 +34,7 @@ PRESETS = {
 }
 
 # Model default per preset, dipakai kalau --model / LAB_LLM_MODEL kosong.
-# Hanya untuk preset yang modelnya sudah teruji sebagai evaluator (CHANGELOG.md).
+# Hanya untuk preset yang modelnya sudah teruji sebagai evaluator.
 DEFAULT_MODELS = {
     "9router": "ag/claude-sonnet-4-6",  # golden net-001 16/16, spread 0 (2026-11-03)
 }

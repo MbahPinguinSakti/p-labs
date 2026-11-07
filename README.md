@@ -1,24 +1,54 @@
+<div align="center">
+
 # P-lab
 
-Lab troubleshooting jaringan yang berjalan di komputermu sendiri. Kamu menerima
-tiket gangguan, masuk ke perangkat lewat terminal di browser, lalu mencari dan
-memperbaiki masalahnya. Konsepnya mirip CTF, tapi yang dinilai bukan hanya
-"berhasil atau tidak". Cara kerjamu juga dinilai: apakah kamu mendiagnosis dulu
-sebelum mengubah konfigurasi, berapa banyak perubahan yang kamu buat, dan apakah
-ada bagian jaringan sehat yang ikut rusak.
+**Lab troubleshooting jaringan yang berjalan di komputermu sendiri.**<br>
+Terima tiket gangguan, masuk ke perangkat lewat terminal di browser, lalu cari dan perbaiki masalahnya.
 
-- **Lab sungguhan**: switch, router, dan host berupa container ([containerlab](https://containerlab.dev)), bukan simulasi, termasuk router **MikroTik RouterOS** ([kebutuhan](docs/instalasi.md#lab-mikrotik-routeros)).
-- **Setiap command direkam**, lalu dinilai di empat dimensi: correctness, efficiency, methodology, dan safety ([cara skor dihitung](docs/penggunaan.md#cara-skor-dihitung)).
-- **Evaluator AI** menilai methodology dengan mengutip command yang kamu ketik. Provider-nya bebas: Anthropic, OpenAI-compatible, atau LLM lokal ([konfigurasi](docs/instalasi.md#evaluator-ai)).
-- **Hint berjenjang**, masing-masing dengan potongan skor ([hint](docs/penggunaan.md#4-hint)).
-- **Bisa ditambah soal sendiri** dari template ([membuat lab](docs/membuat-lab.md)).
+![Linux](https://img.shields.io/badge/Linux-Arch%20%7C%20Debian%20%7C%20Fedora-informational)
+![containerlab](https://img.shields.io/badge/containerlab-0.62%2B-blue)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB)
+![Web UI](https://img.shields.io/badge/Web%20UI-Vite%20%2B%20React-646CFF)
+
+[Mulai cepat](#mulai-cepat) · [Daftar lab](#daftar-lab) · [Dokumentasi](#dokumentasi) · [Struktur folder](#struktur-folder)
+
+</div>
+
+---
+
+Konsepnya mirip CTF, tapi yang dinilai bukan hanya "berhasil atau tidak". Cara
+kerjamu juga dinilai: apakah kamu mendiagnosis dulu sebelum mengubah
+konfigurasi, berapa banyak perubahan yang kamu buat, dan apakah ada bagian
+jaringan sehat yang ikut rusak.
+
+## Fitur
+
+| | |
+|---|---|
+| **Lab sungguhan** | Switch, router, dan host berupa container ([containerlab](https://containerlab.dev)), bukan simulasi. Termasuk router **MikroTik RouterOS** ([kebutuhan](docs/instalasi.md#lab-mikrotik-routeros)). |
+| **Semua command direkam** | Dinilai di empat dimensi: correctness, efficiency, methodology, dan safety ([cara skor dihitung](docs/penggunaan.md#cara-skor-dihitung)). |
+| **Evaluator AI** | Menilai methodology dengan mengutip command yang kamu ketik. Provider bebas: Anthropic, OpenAI-compatible, atau LLM lokal ([konfigurasi](docs/instalasi.md#evaluator-ai)). |
+| **Hint berjenjang** | Setiap level punya potongan skor ([hint](docs/penggunaan.md#4-hint)). |
+| **Soal buatan sendiri** | Tambah lab baru dari template ([membuat lab](docs/membuat-lab.md)). |
+
+## Cara kerja
+
+```
+Tiket gangguan ─▶ Terminal di browser ─▶ Perbaiki ─▶ Verifikasi ─▶ Penilaian ─▶ Hasil
+                   (setiap command                    verify.sh     rumus + AI    skor, momen
+                    direkam)                                                      kunci, timeline
+```
+
+Penjelasan teknisnya ada di [Arsitektur](docs/arsitektur.md).
 
 ## Mulai cepat
 
-Kebutuhan: Linux (Arch, Debian/Ubuntu, atau Fedora), akses sudo, dan RAM sekitar 2 GB untuk lab ([detail kebutuhan](docs/instalasi.md#kebutuhan)).
+> [!NOTE]
+> Kebutuhan: Linux (Arch, Debian/Ubuntu, atau Fedora), akses sudo, dan RAM
+> sekitar 2 GB untuk lab ([detail kebutuhan](docs/instalasi.md#kebutuhan)).
 
 ```bash
-git clone <url-repo> p-lab && cd p-lab
+git clone https://github.com/MbahPinguinSakti/p-labs.git p-lab && cd p-lab
 ./install.sh
 ```
 
@@ -27,21 +57,34 @@ Setelah itu ia membangun web UI dan memasangnya sebagai service yang jalan
 otomatis saat login. Kalau sudah selesai, buka **http://localhost:8000** atau
 ikon **P-lab** di menu aplikasi.
 
-- Apa saja yang dilakukan installer dan opsinya: [Menjalankan installer](docs/instalasi.md#menjalankan-installer)
-- Supaya lab bisa di-deploy dari tombol di web: [Deploy lab tanpa sudo](docs/instalasi.md#deploy-lab-tanpa-sudo)
-- Ada yang gagal: [Masalah umum](docs/instalasi.md#masalah-umum)
-- Langkah berikutnya: [memainkan sesi pertamamu](docs/penggunaan.md#alur-satu-sesi)
+| Kalau kamu ingin | Baca |
+|---|---|
+| Tahu apa saja yang dilakukan installer dan opsinya | [Menjalankan installer](docs/instalasi.md#menjalankan-installer) |
+| Men-deploy lab dari tombol di web | [Deploy lab tanpa sudo](docs/instalasi.md#deploy-lab-tanpa-sudo) |
+| Mengatasi kegagalan | [Masalah umum](docs/instalasi.md#masalah-umum) |
+| Memainkan sesi pertama | [Alur satu sesi](docs/penggunaan.md#alur-satu-sesi) |
+
+## Daftar lab
+
+| ID | Soal | Perangkat |
+|---|---|---|
+| [`net-001`](labs/net-001/README.md) | VLAN Trunk Misconfiguration | Linux bridge |
+| [`net-002`](labs/net-002/README.md) | Subnetting Dasar | MikroTik RouterOS |
+| [`net-003`](labs/net-003/README.md) | OSPF Neighbor Stuck | MikroTik RouterOS |
+
+Lab RouterOS butuh image yang dibangun sekali di mesinmu
+([caranya](docs/instalasi.md#lab-mikrotik-routeros)).
 
 ## Dokumentasi
 
-| | |
+| Halaman | Isi |
 |---|---|
 | [Instalasi](docs/instalasi.md) | kebutuhan, opsi installer, deploy tanpa sudo, update, uninstall, masalah umum |
 | [Penggunaan](docs/penggunaan.md) | memainkan lab di web UI, hint, penilaian, membaca hasil, mode terminal |
 | [Membuat lab](docs/membuat-lab.md) | membuat soal dari template, referensi `problem.yaml`, menguji soal |
 | [Arsitektur](docs/arsitektur.md) | komponen, alur data satu sesi, isi `.state/` |
 | [Provider LLM](platform/llm/README.md) | memilih dan mengonfigurasi evaluator AI |
-
+| [Web UI](web/README.md) | struktur kode frontend dan mode pengembangan |
 
 ## Struktur folder
 
@@ -52,5 +95,5 @@ ikon **P-lab** di menu aplikasi.
 | `platform/` | server web, perekam, checkpoint, evaluator, tool CLI | [Arsitektur](docs/arsitektur.md#modul-platform) |
 | `platform/templates/lab/` | template soal baru, dipakai `platform/new-lab` | [Mulai dari template](docs/membuat-lab.md#mulai-dari-template) |
 | `platform/llm/` | lapisan provider LLM | [Provider LLM](platform/llm/README.md) |
-| `web/` | antarmuka (Vite + React) | [web/README.md](web/README.md) |
+| `web/` | antarmuka (Vite + React) | [Web UI](web/README.md) |
 | `docs/` | dokumentasi | |

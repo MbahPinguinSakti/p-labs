@@ -1,5 +1,7 @@
 # net-003: OSPF Neighbor Stuck (MikroTik RouterOS)
 
+[Beranda](../../README.md) › [Daftar lab](../../README.md#daftar-lab) › net-003
+
 Kantor pusat tidak bisa menjangkau cabang C. Penyebabnya: MTU `ether3` di `r2` (link ke r3) diturunkan ke 1400, sedangkan r3 tetap 1500. Paket DBD OSPF membawa MTU interface; router menolak DBD dari tetangga dengan MTU lebih besar, sehingga adjacency r2–r3 macet di ExStart/Exchange dan rute ke LAN-C tidak pernah dipelajari.
 
 Butuh image RouterOS (sekali): `../../platform/build-routeros-image.sh`. Lihat [docs/instalasi.md](../../docs/instalasi.md#lab-mikrotik-routeros).

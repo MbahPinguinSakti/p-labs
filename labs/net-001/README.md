@@ -1,4 +1,6 @@
-# net-001: VLAN Trunk Misconfiguration (Fase 0)
+# net-001: VLAN Trunk Misconfiguration
+
+[Beranda](../../README.md) › [Daftar lab](../../README.md#daftar-lab) › net-001
 
 File untuk curator/pembuat soal. Pemain hanya membaca `brief.md`.
 
@@ -24,7 +26,7 @@ docker exec -it clab-net001-host-a bash
 ./verify.sh                # cek hasil
 ```
 
-## Perekaman dan checkpoint (Fase 1)
+## Perekaman dan checkpoint
 ```
 ../../platform/serve .                               # ttyd + watcher, buka http://localhost:7681/?arg=sw2
 ../../platform/lab-shell . sw2                       # atau shell langsung di terminal
@@ -44,7 +46,7 @@ Isi `.state/` per sesi:
 
 Kalau pemain masuk dengan `docker exec` langsung, command-nya tidak terekam.
 
-## Evaluasi (Fase 2)
+## Evaluasi
 ```
 python3 ../../platform/evaluate.py run .                 # sesi live: jalankan verify.sh, lalu nilai
 python3 ../../platform/evaluate.py run . --dry-run       # tanpa LLM: skor deterministik + prompt di .state/evaluator_prompt.md
@@ -57,7 +59,7 @@ Hasil: `evaluation.json` dan `evaluation.md` di direktori sesi.
 
 Pembagian penilaian: correctness (`verify.sh`), efficiency, safety, hint, dan checkpoint rule-based dihitung deterministik. LLM hanya menilai methodology, checkpoint `llm_judge`, dan menulis feedback, dengan bukti berupa ID event (`E12`) yang divalidasi.
 
-Provider LLM: Claude (default), OpenAI, Gemini, OpenRouter, Groq, DeepSeek, Mistral, Together, xAI, Ollama, LM Studio, vLLM, server OpenAI-compatible apa pun, dan sisanya lewat LiteLLM. `python3 ../../platform/evaluate.py providers` menampilkan daftarnya beserta env yang belum diset; panduan lengkap ada di `platform/llm/README.md`.
+Provider LLM: Claude (default), OpenAI, Gemini, OpenRouter, Groq, DeepSeek, Mistral, Together, xAI, Ollama, LM Studio, vLLM, server OpenAI-compatible apa pun, dan sisanya lewat LiteLLM. `python3 ../../platform/evaluate.py providers` menampilkan daftarnya beserta env yang belum diset; panduan lengkap ada di [platform/llm/README.md](../../platform/llm/README.md).
 
 Konfigurasi penilaian per soal ada di `problem.yaml` bagian `scoring` (bobot, aturan safety). Klasifikasi command yang mengubah state ada di `platform/nos/<nos>.yaml`.
 
@@ -79,7 +81,7 @@ Golden transcript: `golden/<sesi>/` berisi salinan `.state/` sesi nyata, `notes.
 | `20261103-012346` | `autoplay/nyontek.yaml` | process gate 0, checkpoint diagnosis tidak tercapai |
 | `20261103-023553` | `autoplay/jalan-pintas.yaml` | pelanggaran major, fix yang merusak desain (correctness 50), hint |
 
-## Web UI (Fase 3)
+## Web UI
 ```
 ../../platform/web        # http://localhost:8000 → Labs → VLAN Trunk Misconfiguration
 ```

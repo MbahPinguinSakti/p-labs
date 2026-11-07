@@ -1,5 +1,7 @@
 # Arsitektur
 
+[Beranda](../README.md) › Arsitektur
+
 Semua komponen berjalan di satu mesin, dan tidak ada database. State satu sesi
 disimpan sebagai file di `labs/<id>/.state/`, jadi setiap tahap bisa diperiksa
 dan diulang dari file.

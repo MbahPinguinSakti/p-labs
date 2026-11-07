@@ -1,8 +1,15 @@
 # Instalasi
 
+[Beranda](../README.md) › Instalasi
+
 Singkatnya: `./install.sh`, lalu buka http://localhost:8000. Halaman ini
 menjelaskan apa saja yang dilakukan installer, pilihan yang tersedia, dan cara
 memasang secara manual kalau installer tidak cocok dengan sistemmu.
+
+**Isi halaman:** [Kebutuhan](#kebutuhan) · [Installer](#menjalankan-installer) ·
+[Deploy tanpa sudo](#deploy-lab-tanpa-sudo) · [RouterOS](#lab-mikrotik-routeros) ·
+[Evaluator AI](#evaluator-ai) · [Service](#service-web-ui) · [Update](#update) ·
+[Uninstall](#uninstall) · [Manual](#instalasi-manual) · [Masalah umum](#masalah-umum)
 
 ## Kebutuhan
 
@@ -71,10 +78,10 @@ Setup ini memakai mekanisme bawaan containerlab: binary-nya dijadikan setuid roo
 dan hanya bisa dijalankan anggota grup `clab_admins`. Di Arch, script juga
 memasang pacman hook supaya pengaturan ini tidak hilang saat containerlab di-update.
 
-> **Konsekuensi keamanan:** anggota `clab_admins` praktis setara root lewat
-> containerlab, sama seperti anggota grup `docker`. Ini wajar untuk komputer
-> pribadi dengan satu pengguna. Jangan aktifkan di mesin yang dipakai bersama
-> orang yang tidak kamu percaya.
+> [!WARNING]
+> Anggota `clab_admins` praktis setara root lewat containerlab, sama seperti
+> anggota grup `docker`. Ini wajar untuk komputer pribadi dengan satu pengguna.
+> Jangan aktifkan di mesin yang dipakai bersama orang yang tidak kamu percaya.
 
 Untuk membatalkan: `sudo platform/setup-sudoless.sh --undo`.
 

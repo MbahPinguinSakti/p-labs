@@ -1,5 +1,7 @@
 # Membuat lab
 
+[Beranda](../README.md) › Membuat lab
+
 Satu lab adalah satu folder di `labs/<id>/`. Isinya topologi, tiket untuk
 pemain, script untuk merusak dan memeriksa lab, dan `problem.yaml` yang
 mengatur cara sesi direkam dan dinilai. Platform (`platform/`) tidak perlu

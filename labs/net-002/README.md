@@ -1,5 +1,7 @@
 # net-002: Subnetting Dasar (MikroTik RouterOS)
 
+[Beranda](../../README.md) › [Daftar lab](../../README.md#daftar-lab) › net-002
+
 Server baru `host-b` (10.20.0.130) tidak bisa dijangkau. Penyebabnya: prefix alamat LAN-B di `r2` adalah /25 (10.20.0.0–127), padahal desainnya /24. Akibatnya r2 tidak menganggap .130 terhubung langsung dan tidak punya rute ke sana.
 
 Butuh image RouterOS (sekali): `../../platform/build-routeros-image.sh`. Lihat [docs/instalasi.md](../../docs/instalasi.md#lab-mikrotik-routeros).
