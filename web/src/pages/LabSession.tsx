@@ -6,7 +6,7 @@ import { PageHeader } from "../components/Layout";
 import { Modal } from "../components/Modal";
 import { Terminal } from "../components/Terminal";
 import { layers, Topology } from "../components/Topology";
-import { api, ApiError, type LabDetail, type LiveCheckpoint, type LiveState } from "../lib/api";
+import { api, ApiError, type DeployJob, type LabDetail, type LiveCheckpoint, type LiveState } from "../lib/api";
 import { useAppData } from "../lib/appData";
 import { category, clock, date } from "../lib/format";
 import { useApi, useLiveSession, useNow } from "../lib/hooks";
@@ -77,6 +77,7 @@ function StartSession({ lab, state }: { lab: LabDetail; state: LiveState }) {
   const deployed = state.running && state.running.length === state.nodes.length;
   const deployJob = state.deploy;
   const deploying = deployJob?.status === "running";
+  const queued = deployJob?.status === "queued";
   const canDeploy = me?.deploy?.available ?? false;
 
   const call = async (fn: () => Promise<unknown>) => {
@@ -158,10 +159,11 @@ function StartSession({ lab, state }: { lab: LabDetail; state: LiveState }) {
               </span>
             </div>
           )}
-          {deploying ? (
-            <DeployProgress job={deployJob!} />
+          {queued && deployJob && <DeployQueue labId={lab.id} job={deployJob} />}
+          {deploying && deployJob ? (
+            <DeployProgress job={deployJob} />
           ) : deployed ? (
-            <button type="button" className="btn btn-primary" onClick={start} disabled={busy}>
+            <button type="button" className="btn btn-primary" onClick={start} disabled={busy || queued}>
               {busy ? "Menyiapkan lab…" : state.evaluated ? "Mulai sesi baru" : "Mulai sesi"}
             </button>
           ) : (
@@ -172,7 +174,12 @@ function StartSession({ lab, state }: { lab: LabDetail; state: LiveState }) {
                   Lab belum berjalan. Deploy menyalakan semua node lalu memasang fault (
                   {lab.topology.nodes.some((n) => n.kind === "mikrotik_ros") ? "router RouterOS: 2-4 menit" : "±30 detik"}).
                 </p>
-                <button type="button" className="btn btn-primary" onClick={deploy} disabled={busy || lab.missing_images.length > 0}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={deploy}
+                  disabled={busy || queued || lab.missing_images.length > 0}
+                >
                   Deploy & mulai
                 </button>
               </>
@@ -199,7 +206,7 @@ function StartSession({ lab, state }: { lab: LabDetail; state: LiveState }) {
           {/* Lab jalan tapi rusak (rearm ditolak): tawarkan deploy ulang. */}
           {error && deployed && !deploying &&
             (canDeploy ? (
-              <button type="button" className="btn btn-secondary" onClick={deploy} disabled={busy}>
+              <button type="button" className="btn btn-secondary" onClick={deploy} disabled={busy || queued}>
                 Deploy ulang lab
               </button>
             ) : (
@@ -247,8 +254,58 @@ function DeployProgress({ job }: { job: NonNullable<LiveState["deploy"]> }) {
           </li>
         ))}
       </ol>
-      <p className="soft">{clock(now - job.started)}</p>
+      <p className="soft">{job.started ? clock(now - job.started) : "00:00"}</p>
     </div>
+  );
+}
+
+const QUEUE_REASON: Record<NonNullable<DeployJob["queue_reason"]>, string> = {
+  busy: "menunggu giliran deploy (server membatasi deploy bersamaan)",
+  memory: "menunggu RAM server cukup (lab lain sedang berjalan)",
+};
+
+// Deploy yang mengantre (mode Server): posisi FIFO dan tombol batalkan.
+function DeployQueue({ labId, job }: { labId: string; job: DeployJob }) {
+  const { reloadLabs } = useAppData();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const cancel = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.cancelDeploy(labId);
+      await reloadLabs();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <div className={`notice ${s.queue}`}>
+        <Icon name="clock" className="accent" />
+        <span>
+          Mengantre deploy{job.position != null ? ` · posisi ${job.position}` : ""}
+          {job.queue_reason && (
+            <>
+              <br />
+              <span className="soft">{QUEUE_REASON[job.queue_reason]}</span>
+            </>
+          )}
+        </span>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={cancel} disabled={busy}>
+          {busy ? "Membatalkan…" : "Batalkan antrian"}
+        </button>
+      </div>
+      {error && (
+        <div className="notice notice-ember">
+          <span>{error}</span>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -268,6 +325,8 @@ function ActiveSession({ lab, state, connected }: { lab: LabDetail; state: LiveS
   const [dialog, setDialog] = useState<null | "hint" | "finish" | "reset">(null);
   const job = state.job;
   const running = job?.status === "running";
+  const deployJob = state.deploy;
+  const queued = deployJob?.status === "queued";
   const now = useNow(!running);
 
   // Watcher dijalankan server untuk sesi ini (idempoten). Terminal sendiri tidak
@@ -302,7 +361,7 @@ function ActiveSession({ lab, state, connected }: { lab: LabDetail; state: LiveS
               <Icon name="clock" size={18} />
               {state.started ? clock(elapsed) : "00:00"}
             </span>
-            <button type="button" className="btn btn-secondary" onClick={() => setDialog("reset")} disabled={running}>
+            <button type="button" className="btn btn-secondary" onClick={() => setDialog("reset")} disabled={running || queued}>
               Reset lab
             </button>
             <button type="button" className="btn btn-secondary" disabled={!nextHint} onClick={() => setDialog("hint")}>
@@ -315,6 +374,7 @@ function ActiveSession({ lab, state, connected }: { lab: LabDetail; state: LiveS
         }
       />
 
+      {queued && deployJob && <DeployQueue labId={lab.id} job={deployJob} />}
       <div className={s.grid}>
         <div className={s.col}>
           <Ticket lab={lab} />
@@ -386,14 +446,14 @@ function ActiveSession({ lab, state, connected }: { lab: LabDetail; state: LiveS
           onClose={() => setDialog(null)}
         />
       )}
-      {dialog === "reset" && <ResetDialog lab={lab} onClose={() => setDialog(null)} />}
+      {dialog === "reset" && <ResetDialog lab={lab} queued={queued} onClose={() => setDialog(null)} />}
     </>
   );
 }
 
 // Reset = deploy ulang dari nol. Dipakai kalau lab rusak (mis. bridge hilang setelah
 // container restart) atau pemain ingin mengulang; sesi berjalan dibuang tanpa dinilai.
-function ResetDialog({ lab, onClose }: { lab: LabDetail; onClose: () => void }) {
+function ResetDialog({ lab, queued, onClose }: { lab: LabDetail; queued: boolean; onClose: () => void }) {
   const { me } = useAppData();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -420,7 +480,7 @@ function ResetDialog({ lab, onClose }: { lab: LabDetail; onClose: () => void }) 
             Batal
           </button>
           {support?.available && (
-            <button type="button" className="btn btn-primary btn-sm" onClick={reset} disabled={busy}>
+            <button type="button" className="btn btn-primary btn-sm" onClick={reset} disabled={busy || queued}>
               {busy ? "Memulai…" : "Reset lab"}
             </button>
           )}
@@ -563,9 +623,14 @@ function Activity({ state }: { state: LiveState }) {
   );
 }
 
+// IPv6 perlu kurung siku supaya port tidak tertukar dengan bagian alamat ([fe80::1]:28024).
+const hostPort = (host: string, port: number) => (host.includes(":") ? `[${host}]:${port}` : `${host}:${port}`);
+
 function GuiAccess({ state }: { state: LiveState }) {
   const rows = state.gui_access ?? [];
   if (rows.length === 0) return null;
+  // published: port host bisa dibuka langsung dari komputer lain (tanpa tunnel ssh).
+  const published = rows.every((r) => r.published);
   return (
     <section className="panel">
       <div className="panel-head">
@@ -579,16 +644,20 @@ function GuiAccess({ state }: { state: LiveState }) {
           <li key={r.node}>
             <span className={s.eventNode}>{r.node}</span>
             <code>
-              {r.host}:{r.port}
+              {hostPort(r.host, r.port)}
             </code>
           </li>
         ))}
       </ul>
-      <p className={`soft ${s.guiNote}`}>
-        Perubahan dari Winbox ikut direkam dan dinilai, tapi membuka tabel di Winbox tidak terekam. Dari komputer lain,
-        buka tunnel dulu: <code>ssh -L 8291:{rows[0].host}:8291 {location.hostname}</code>, lalu Winbox ke{" "}
-        <code>127.0.0.1</code>.
-      </p>
+      {published ? (
+        <p className={`soft ${s.guiNote}`}>Buka Winbox, isi Connect To dengan alamat di atas.</p>
+      ) : (
+        <p className={`soft ${s.guiNote}`}>
+          Perubahan dari Winbox ikut direkam dan dinilai, tapi membuka tabel di Winbox tidak terekam. Dari komputer lain,
+          buka tunnel dulu: <code>ssh -L 8291:{rows[0].host}:8291 {location.hostname}</code>, lalu Winbox ke{" "}
+          <code>127.0.0.1</code>.
+        </p>
+      )}
     </section>
   );
 }

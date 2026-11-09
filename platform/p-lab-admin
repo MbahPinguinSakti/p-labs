@@ -84,6 +84,8 @@ def reexec_as(uid, gid, name, cfg):
         cmd = ["setpriv", f"--reuid={uid}", f"--regid={gid}", "--init-groups", *inner]
     else:
         raise Refused(f"runuser/setpriv tidak ada; jalankan: sudo -u {name} platform/p-lab-admin ...")
+    # Dicetak supaya prompt password berikutnya tidak dikira prompt sudo yang diulang.
+    print(f"(berjalan sebagai user {name}, pemilik database akun)", file=sys.stderr, flush=True)
     os.execvp(cmd[0], cmd)
 
 
@@ -100,15 +102,32 @@ def open_store():
 def read_password(args, confirm=True):
     if args.password_stdin:
         return sys.stdin.readline().rstrip("\r\n")
-    password = getpass.getpass("Password: ")
+    # Prompt menyebut akunnya: setelah `sudo`, "Password:" polos mudah dikira sudo bertanya lagi.
+    password = getpass.getpass(f"Password baru untuk akun {args.username}: ")
     if confirm and getpass.getpass("Ulangi password: ") != password:
         raise AccountError("Kedua password tidak sama.")
     return password
 
 
+def where(store):
+    """Lokasi DB dan alamat login, dicetak setelah perintah yang mengubah akun."""
+    lines = [f"  Database : {store.path}"]
+    try:
+        cfg = cfgmod.load()
+        host = "localhost" if cfg.host in ("0.0.0.0", "::", "127.0.0.1") else cfg.host
+        host = f"[{host}]" if ":" in host else host
+        lines.append(f"  Login    : http://{host}:{cfg.port} (mode {cfg.mode})")
+    except cfgmod.ConfigError:
+        pass
+    return "\n".join(lines)
+
+
 def cmd_create(store, args):
-    user = store.create_user(args.username, read_password(args), args.role, args.name)
-    print(f"Akun dibuat: {user['username']} ({user['role']})")
+    password = read_password(args)
+    print(f"Membuat akun {args.username}…", flush=True)
+    user = store.create_user(args.username, password, args.role, args.name)
+    print(f"Akun dibuat: {user['username']} ({user['role']}, nama \"{user['display_name']}\")")
+    print(where(store))
 
 
 def cmd_import(store, args):
@@ -124,8 +143,10 @@ def cmd_import(store, args):
 
 
 def cmd_reset(store, args):
-    store.set_password(args.username, read_password(args))
+    password = read_password(args)
+    store.set_password(args.username, password)
     print(f"Password {args.username} diganti; semua sesi loginnya dicabut.")
+    print(where(store))
 
 
 def cmd_role(store, args):
@@ -188,6 +209,9 @@ def main():
         return args.func(open_store(), args) or 0
     except (AccountError, Refused, cfgmod.ConfigError) as error:
         print(f"Error: {error}", file=sys.stderr)
+    except (KeyboardInterrupt, EOFError):
+        # Bukan "tidak ada yang diubah": import-csv membuat akun per baris sebelum dibatalkan.
+        print("\nDibatalkan. Cek hasilnya dengan: p-lab-admin list", file=sys.stderr)
     except (sqlite3.Error, OSError) as error:
         print(f"Error: database akun tidak bisa dibuka/ditulis ({error}). Mode Server: jalankan "
               "dengan `sudo platform/p-lab-admin ...`; periksa juga pemilik dan izin data_dir.",

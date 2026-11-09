@@ -49,6 +49,10 @@ Kalau deploy dari web belum diaktifkan ([instalasi](instalasi.md#deploy-lab-tanp
 halaman menampilkan perintah yang harus dijalankan di terminal:
 `cd labs/<id> && ./reset.sh`.
 
+Di [mode Server](server.md), kalau server sedang penuh, Deploy masuk **antrian**.
+Halaman lab menampilkan posisimu dan tombol **Batalkan antrian**. Antrian dibatalkan
+otomatis setelah 30 menit ([detail](server.md#antrian-deploy)).
+
 ### 3. Kerjakan soalnya
 
 Layar sesi terbagi tiga:
@@ -97,9 +101,12 @@ Router juga bisa dikonfigurasi lewat **Winbox** (atau WebFig). Selama sesi,
 panel **Winbox** di halaman sesi menampilkan alamat tiap router
 (mis. `172.20.20.3:8291`, login `admin`/`admin`).
 
-- Alamat itu ada di jaringan Docker mesin lab. Dari komputer lain, buka tunnel
-  dulu: `ssh -L 8291:172.20.20.3:8291 <mesin-lab>`, lalu sambungkan Winbox ke
-  `127.0.0.1`.
+- Di [mode Server](server.md#winbox-dari-komputer-siswa) dengan Winbox dari komputer
+  lain diaktifkan, panel menampilkan `alamat-server:port` yang bisa langsung kamu
+  buka dari komputermu sendiri.
+- Di mode Pribadi, alamat itu ada di jaringan Docker mesin lab. Dari komputer lain,
+  buka tunnel dulu: `ssh -L 8291:172.20.20.3:8291 <mesin-lab>`, lalu sambungkan
+  Winbox ke `127.0.0.1`.
 - Setiap **perubahan** dari Winbox direkam: P-lab membandingkan konfigurasi
   router tiap ±3 detik dan mencatat selisihnya sebagai command RouterOS,
   dengan label `winbox` di daftar aktivitas. Perubahan itu dinilai seperti

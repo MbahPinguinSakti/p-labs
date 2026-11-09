@@ -16,6 +16,8 @@ Jadi server.py memanggil bind(...) sekali saat start, dan router memakai H.*:
   H.session_payload(inst, session, golden)  isi /api/labs/{id}/sessions/{s} untuk instance mana pun
   H.lab_busy(inst)              None | "deploy" | "evaluate"
   H.deploy_job(inst)            status deploy (dict DeployJob) atau None
+  H.deploy_queue()              antrian deploy FIFO: [{"instance", "position", "reason", "queued_at"}]
+                                urut posisi (reason: "busy" | "memory"); [] kalau kosong
   H.last_seen(inst)             epoch halaman lab terakhir terbuka (WebSocket) atau None
   H.stop_lab(inst, reason)      matikan satu lab (arsip sesi belum dinilai); 409 kalau sibuk.
                                 Mengembalikan session_id yang diarsipkan atau None.

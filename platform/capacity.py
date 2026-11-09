@@ -36,7 +36,7 @@ from pathlib import Path
 
 import yaml
 
-from instance import LOCAL, Instance, InstanceError
+from instance import LOCAL, Instance, InstanceError, load_yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 LABS = ROOT / "labs"
@@ -122,8 +122,8 @@ def lab_index(labs_root=LABS):
     index = {}
     for problem_file in sorted(Path(labs_root).glob("*/problem.yaml")):
         try:
-            problem = yaml.safe_load(problem_file.read_text()) or {}
-            topo = yaml.safe_load((problem_file.parent / problem["lab_topology"]).read_text()) or {}
+            problem = load_yaml(problem_file) or {}
+            topo = load_yaml(problem_file.parent / problem["lab_topology"]) or {}
         except (OSError, KeyError, TypeError, yaml.YAMLError):
             continue
         if topo.get("name"):
@@ -227,6 +227,15 @@ class Capacity:
         need = self.estimate(inst)
         limit = self.cap.mem_mb
         name = inst.problem.get("id", inst.problem_dir.name)
+        if need > limit:
+            return Decision(False, f"Lab {name} butuh perkiraan {need} MB RAM, melebihi batas server "
+                                   f"({limit} MB). Minta admin menaikkan capacity.mem_mb.",
+                            "too_big", [], need, 0, limit)
+        if inst not in self.deploying and len(self.deploying) >= self.cap.max_deploys:
+            # Tanpa docker: slot baru kosong lewat release_deploy, yang memicu antrian sendiri.
+            return Decision(False, f"Sedang ada {len(self.deploying)} deploy berjalan (maks. "
+                                   f"{self.cap.max_deploys} bersamaan). Coba lagi sebentar lagi.",
+                            "busy", [], need, 0, limit)
         try:
             running, existing = self.running(), self.existing()
         except OSError as error:
@@ -234,14 +243,6 @@ class Capacity:
                             "docker", need_mb=need, limit_mb=limit)
         destroy = sorted((i for i in existing if i.user == inst.user and i != inst),
                          key=lambda i: i.problem_dir.name) if self.one_per_user else []
-        if need > limit:
-            return Decision(False, f"Lab {name} butuh perkiraan {need} MB RAM, melebihi batas server "
-                                   f"({limit} MB). Minta admin menaikkan capacity.mem_mb.",
-                            "too_big", destroy, need, 0, limit)
-        if inst not in self.deploying and len(self.deploying) >= self.cap.max_deploys:
-            return Decision(False, f"Sedang ada {len(self.deploying)} deploy berjalan (maks. "
-                                   f"{self.cap.max_deploys} bersamaan). Coba lagi sebentar lagi.",
-                            "busy", destroy, need, 0, limit)
         # Lab yang akan dimatikan (lab lain user ini) dan lab ini sendiri (redeploy) tidak dihitung.
         others = (running | set(self.deploying)) - set(destroy) - {inst}
         used = sum(self.estimate(i) for i in others)

@@ -119,6 +119,25 @@ def check_port(host, port, own_service_active=False):
     return OK, f"port {host}:{port} bebas"
 
 
+def check_winbox_ports(base):
+    """winbox_ports aktif: port pertama dan terakhir rentang tidak boleh sedang dipakai (sampel)."""
+    if not base:
+        return OK, "winbox_ports nonaktif"
+    last = base + 2047
+    busy = []
+    for port in (base, last):
+        with closing(socket.socket(socket.AF_INET)) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                s.bind(("0.0.0.0", port))
+            except OSError:
+                busy.append(port)
+    if busy:
+        return WARN, (f"port Winbox {', '.join(map(str, busy))} sedang dipakai proses lain "
+                      f"(rentang {base}-{last}): ganti winbox_ports atau hentikan prosesnya")
+    return OK, f"rentang port Winbox {base}-{last} (sampel ujung) bebas; buka di firewall"
+
+
 def lab_clab_names(repo=ROOT):
     """Nama lab containerlab dari labs/*/*.clab.yaml (dasar awalan container clab-<nama>-)."""
     names = set()
@@ -205,6 +224,7 @@ def run_checks(cfg, admin_name="admin", repo=ROOT, own_service_active=None, cont
     results.append(check_kvm(routeros_labs(repo)))
     results.append(check_containerlab())
     results.append(check_port(cfg.host, cfg.port, own_service_active))
+    results.append(check_winbox_ports(cfg.winbox_ports))
     results.append(check_containers(container_names, lab_clab_names(repo)))
     results.append(check_admin(cfg, admin_name))
     return results

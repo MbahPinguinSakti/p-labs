@@ -146,6 +146,26 @@ class TestLoad(Tmp):
                 config.load(self.write(f"mode: pribadi\n{key}\n"))
             self.assertIn("hanya berlaku di mode server", cm.exception.problems[0])
 
+    def test_winbox_ports(self):
+        self.assertEqual(config.load(self.write("mode: server\n")).winbox_ports, 0)
+        self.assertEqual(config.load(self.write("mode: server\nwinbox_ports: 28000\n")).winbox_ports, 28000)
+        self.assertEqual(config.load(self.write("mode: server\nwinbox_ports: 0\n")).winbox_ports, 0)
+        for ok in (1024, 63488):
+            self.assertEqual(config.load(self.write(f"mode: server\nwinbox_ports: {ok}\n")).winbox_ports, ok)
+
+    def test_winbox_ports_invalid(self):
+        for bad in ("1023", "63489", "-5", "70000", "'28000'", "true", "2.5", "[1]"):
+            with self.assertRaises(ConfigError, msg=bad) as cm:
+                config.load(self.write(f"mode: server\nwinbox_ports: {bad}\n"))
+            self.assertIn("winbox_ports harus", cm.exception.problems[0])
+
+    def test_winbox_ports_pribadi(self):
+        """Mode pribadi: 0 boleh, nilai aktif ERROR (sama seperti allowed_hosts)."""
+        self.assertEqual(config.load(self.write("mode: pribadi\nwinbox_ports: 0\n")).winbox_ports, 0)
+        with self.assertRaises(ConfigError) as cm:
+            config.load(self.write("mode: pribadi\nwinbox_ports: 28000\n"))
+        self.assertIn("hanya berlaku di mode server", cm.exception.problems[0])
+
     def test_template_is_valid(self):
         c = config.load(TEMPLATE)
         self.assertEqual((c.allowed_hosts, c.trusted_proxies), ((), ()))   # contoh dikomentari
@@ -255,6 +275,18 @@ class TestMigrate(Tmp):
         cfg = config.from_dict({})
         res = self.m.run_checks(cfg, repo=self.repo, own_service_active=False, container_names=[])
         self.assertEqual(res[0][0], "fail")
+
+    def test_check_winbox_ports(self):
+        self.assertEqual(self.m.check_winbox_ports(0)[0], "ok")
+        import socket
+        with socket.socket() as s:
+            s.bind(("0.0.0.0", 0))
+            s.listen()
+            busy = s.getsockname()[1]
+            self.assertEqual(self.m.check_winbox_ports(busy)[0], "warn")
+        res = self.m.run_checks(config.from_dict({"mode": "server", "data_dir": "/x"}), repo=self.repo,
+                                own_service_active=False, container_names=[])
+        self.assertTrue(any("winbox" in msg.lower() for _, msg in res))
 
     def test_confirmation(self):
         args = mock.Mock(yes_i_understand=False)

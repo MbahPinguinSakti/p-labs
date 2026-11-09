@@ -79,7 +79,14 @@ def list_labs(user: dict = Depends(require_admin)):
     now = time.time()
     labs = [_lab(i, running, deploying, users, now) for i in insts]
     used = sum(cap.estimate(i) for i in running | set(deploying))
+    queue = [{"username": row["instance"].user,
+              "display_name": _display_name(row["instance"].user, users),
+              "lab_id": (row["instance"].problem or {}).get("id") or row["instance"].problem_dir.name,
+              "title": (row["instance"].problem or {}).get("title") or row["instance"].problem_dir.name,
+              "position": row["position"], "reason": row["reason"], "queued_at": row["queued_at"]}
+             for row in getattr(H, "deploy_queue", lambda: [])()]
     return {
+        "queue": queue,
         "capacity": {"used_mb": used, "limit_mb": cap.cap.mem_mb, "deploying": len(deploying),
                      "max_deploys": cap.cap.max_deploys, "idle_minutes": cap.cap.idle_minutes},
         "labs": labs,

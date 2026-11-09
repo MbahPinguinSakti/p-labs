@@ -11,9 +11,9 @@ Kalau kamu hanya memakai P-lab sendirian, tetap di mode Pribadi
 ([instalasi](instalasi.md#pilih-mode-pribadi-atau-server)).
 
 **Isi halaman:** [Kebutuhan dan sizing](#kebutuhan-dan-sizing) ·
-[Instalasi](#instalasi) · [Konfigurasi](#konfigurasi) · [Kapasitas](#batas-kapasitas) · [Key LLM](#key-llm-untuk-nilai-dengan-ai) · [Akun](#akun) ·
+[Instalasi](#instalasi) · [Konfigurasi](#konfigurasi) · [Kapasitas](#batas-kapasitas) · [Antrian](#antrian-deploy) · [Key LLM](#key-llm-untuk-nilai-dengan-ai) · [Akun](#akun) ·
 [Dashboard admin](#dashboard-admin) · [Mandiri vs kelas](#gaya-mandiri-atau-kelas) ·
-[Halaman kelas](#halaman-kelas) · [Akses dari komputer lain](#akses-dari-komputer-lain) ·
+[Halaman kelas](#halaman-kelas) · [Akses dari komputer lain](#akses-dari-komputer-lain) · [Winbox](#winbox-dari-komputer-siswa) ·
 [HTTPS](#https-opsional) · [Keamanan](#keamanan) · [Backup](#backup-dan-restore) ·
 [Migrasi dari Pribadi](#migrasi-dari-mode-pribadi) · [Masalah umum](#masalah-umum) ·
 [Belum tersedia](#belum-tersedia)
@@ -113,6 +113,7 @@ allowed_hosts:            # disarankan: nama/IP yang dipakai membuka P-lab
   - lab.sekolah.local
   - 192.168.1.10
 trusted_proxies: []       # IP/CIDR reverse proxy (kosong kalau tanpa proxy)
+winbox_ports: 28000       # opsional: 0 atau dihapus = Winbox dari komputer lain nonaktif
 ```
 
 | Baris | Arti |
@@ -121,11 +122,12 @@ trusted_proxies: []       # IP/CIDR reverse proxy (kosong kalau tanpa proxy)
 | `listen` | alamat dan port. `0.0.0.0:8000` bisa diakses dari jaringan; `127.0.0.1:8000` hanya dari mesin itu (cocok kalau di depannya ada reverse proxy). |
 | `data_dir` | semua data mode Server: database akun `p-lab.db`, folder `instances/<user>/<lab>/` (lab dan sesi tiap pengguna), dan arsip sesi. Harus bisa ditulis user `plab`. |
 | `style` | `mandiri` atau `kelas`, lihat [bagian berikut](#gaya-mandiri-atau-kelas). |
-| `capacity.mem_mb` | total estimasi RAM untuk semua lab yang boleh berjalan bersamaan. Deploy ditolak (dengan pesan) kalau perkiraannya melewati batas ini. |
-| `capacity.max_deploys` | berapa deploy yang boleh berjalan bersamaan. Deploy lab RouterOS menguras CPU dan disk, jadi 2 biasanya cukup. |
+| `capacity.mem_mb` | total estimasi RAM untuk semua lab yang boleh berjalan bersamaan. Deploy yang membuat totalnya melewati batas ini masuk [antrian](#antrian-deploy). Kalau satu lab saja sudah melewati batas, deploy ditolak dengan pesan. |
+| `capacity.max_deploys` | berapa deploy yang boleh berjalan bersamaan. Deploy lab RouterOS menguras CPU dan disk, jadi 2 biasanya cukup. Deploy lain masuk [antrian](#antrian-deploy). |
 | `capacity.idle_minutes` | lab tanpa aktivitas selama ini (tidak ada command dan halaman lab tidak terbuka) dimatikan untuk membebaskan RAM. Sesi yang belum dinilai **tidak bisa dilanjutkan**: rekamannya disimpan di folder instance, tapi tidak muncul di riwayat. Pengguna perlu deploy lagi dan mulai sesi baru. |
 | `allowed_hosts` | opsional tapi **disarankan**: daftar nama host atau IP (yang kamu ketik di browser) yang boleh dipakai membuka P-lab. Permintaan dengan header `Host` lain ditolak; ini mencegah serangan DNS rebinding. Tulis tanpa `http://` dan tanpa port (mis. `[192.168.1.10, lab.sekolah.local]`). Isi semua nama yang dipakai, termasuk IP kalau ada yang membukanya lewat IP. `localhost`, `127.0.0.1`, dan `[::1]` selalu diizinkan supaya admin bisa membuka dari mesin server sendiri. Kosong = semua `Host` diterima (server mencatat peringatan di log). Di mode Pribadi kunci ini tidak boleh diisi. |
 | `trusted_proxies` | opsional: IP atau CIDR reverse proxy yang dipercaya. Pembatas percobaan login memakai alamat klien dari `X-Forwarded-For` **hanya** kalau permintaan datang dari alamat di daftar ini; selain itu dipakai alamat koneksi langsung. Daftar yang sama juga menentukan kapan `X-Forwarded-Proto: https` dipercaya untuk memberi flag `Secure` pada cookie login. Isi kalau kamu memasang [proxy HTTPS](#https-opsional), mis. `["127.0.0.1"]`. Proxy wajib meneruskan header `Host` asli; `X-Forwarded-Host` tidak dibaca. |
+| `winbox_ports` | opsional: port awal untuk Winbox per router dari komputer lain. `0` atau tidak diisi = nonaktif. Kalau diisi, nilainya 1024 sampai 63488, dan P-lab memakai rentang 2048 port mulai dari nilai ini. Lihat [Winbox dari komputer siswa](#winbox-dari-komputer-siswa). |
 
 Setelah mengubah file ini: `sudo systemctl restart p-lab`.
 
@@ -134,13 +136,26 @@ Setelah mengubah file ini: `sudo systemctl restart p-lab`.
 Tanpa batas, 30 siswa yang menekan Deploy bersamaan akan membuat mesin hang.
 Karena itu P-lab membatasi lewat beberapa aturan, sebagian dari `capacity` di config:
 
-- **RAM (`mem_mb`)**: sebelum deploy, P-lab menjumlahkan perkiraan RAM lab yang sedang berjalan (dari `resources.mem_mb` di `problem.yaml` tiap lab). Kalau lab baru membuat totalnya melewati `mem_mb`, deploy **ditolak dengan pesan**. Pengguna mencoba lagi nanti.
-- **Deploy bersamaan (`max_deploys`)**: hanya sejumlah ini yang boleh berjalan sekaligus. Deploy lain diminta **mencoba lagi** sebentar.
+- **RAM (`mem_mb`)**: sebelum deploy, P-lab menjumlahkan perkiraan RAM lab yang sedang berjalan (dari `resources.mem_mb` di `problem.yaml` tiap lab). Kalau lab baru membuat totalnya melewati `mem_mb`, deploy **masuk [antrian](#antrian-deploy)** sampai RAM cukup. Kalau perkiraan satu lab saja sudah melewati `mem_mb`, deploy **ditolak dengan pesan**, karena tidak akan pernah muat.
+- **Deploy bersamaan (`max_deploys`)**: hanya sejumlah ini yang boleh berjalan sekaligus. Deploy lain **masuk antrian** dan menunggu giliran.
 - **Satu lab per pengguna**: men-deploy lab baru mematikan lab lain milik pengguna yang sama. Siswa tidak bisa memegang beberapa lab sekaligus.
 - **Tanpa aktivitas (`idle_minutes`)**: lab yang tidak disentuh selama itu dimatikan untuk membebaskan RAM. Halaman lab yang masih terbuka di browser dihitung sebagai aktivitas. Sesi yang belum dinilai tidak bisa dilanjutkan dan tidak muncul di riwayat, jadi ingatkan pengguna menekan **Selesai & nilai** sebelum pergi.
-- **Akun dinonaktifkan**: lab milik akun itu ikut dimatikan.
+- **Akun dinonaktifkan**: lab milik akun itu ikut dimatikan, dan antriannya dibuang.
 
-Tidak ada antrian otomatis: penolakan hanya memberi pesan, bukan menunggu giliran.
+## Antrian deploy
+
+Kalau server sedang penuh, deploy tidak langsung ditolak. Di mode Server ia masuk **antrian**, lalu dijalankan otomatis saat gilirannya tiba dan RAM tersedia.
+
+- **Alasan antre** tampil di halaman lab: *menunggu giliran deploy* (sudah ada `max_deploys` deploy yang berjalan) atau *menunggu RAM server cukup* (lab lain sedang berjalan).
+- **Berurutan ketat (FIFO).** Lab kecil tidak menyalip lab di depannya, walaupun RAM untuk lab kecil itu sebenarnya cukup. Akibatnya, pengguna di belakang bisa menunggu lebih lama dari yang diperlukan labnya.
+- **Posisi dan batal.** Halaman lab menampilkan posisimu (mis. "posisi 2") dan tombol **Batalkan antrian**. Satu akun hanya boleh punya satu deploy dalam antrian atau yang sedang berjalan. Men-deploy lab lain saat itu ditolak dengan pesan.
+- **Batas 30 menit.** Antrian yang menunggu lebih dari 30 menit dibatalkan otomatis, dengan pesan "Antrian deploy dibatalkan: menunggu lebih dari 30 menit."
+- **Akun dinonaktifkan.** Antriannya dibuang.
+- **Gangguan sementara tidak membuang antrian.** Kalau docker sesaat tidak menjawab, atau pemilik entri terdepan sedang dinilai / labnya sedang dimatikan, antrian menunggu lalu dicoba lagi (paling lambat tiap 10 detik, dan segera setelah ada deploy yang selesai).
+- **Antrian ada di memori.** Kalau service P-lab di-restart, antrian kosong lagi dan halaman lab kembali menampilkan tombol Deploy; pengguna cukup menekannya lagi.
+- **Lab terlalu besar tidak masuk antrian.** Kalau perkiraan RAM satu lab sendiri sudah melebihi `capacity.mem_mb`, deploy ditolak seperti biasa, karena antrian tidak akan pernah bisa melayaninya. Minta admin menaikkan batas, atau pilih lab yang lebih kecil.
+
+Admin melihat semua antrian di [Lab berjalan](#lab-berjalan).
 
 ## Key LLM untuk "Nilai dengan AI"
 
@@ -243,7 +258,7 @@ atas tabel.
 | **Tambah akun** | Isi username, nama, role, dan password. Kosongkan password untuk dibuatkan password acak. |
 | **Import CSV** | Tempel isi CSV dengan kolom `username,display_name,role,password` di kotak teks, lalu pilih role default. CSV dari Excel dengan pemisah titik koma (`;`) juga diterima. Hasilnya berupa daftar akun yang berhasil dibuat beserta password acaknya, dan daftar baris yang gagal beserta pesannya. Seperti CLI, import berjalan per baris. |
 | **Ubah** | Membuka dialog untuk mengganti nama tampilan (maksimal 100 karakter) dan role, lalu **Simpan**. |
-| **Nonaktifkan** / **Aktifkan** | Minta konfirmasi. Saat dinonaktifkan, sesi login akun itu langsung berakhir dan lab-nya ikut dimatikan. Sesi yang belum dinilai diarsipkan sebagai ditinggalkan dan tidak bisa dilanjutkan. Kalau lab itu sedang di-deploy, dinilai, atau sedang dimatikan, lab itu dilewati dan dimatikan otomatis dalam satu menit setelah selesai (pesan sukses menyebut jumlahnya). |
+| **Nonaktifkan** / **Aktifkan** | Minta konfirmasi. Saat dinonaktifkan, sesi login akun itu langsung berakhir dan lab-nya ikut dimatikan. Sesi yang belum dinilai diarsipkan sebagai ditinggalkan dan tidak bisa dilanjutkan. Antrian deploy akun itu dibuang. Kalau lab itu sedang di-deploy, dinilai, atau sedang dimatikan, lab itu dilewati dan dimatikan otomatis dalam satu menit setelah selesai (pesan sukses menyebut jumlahnya). |
 | **Reset password** | P-lab membuat password acak baru dan menampilkannya **sekali**. Semua sesi login akun itu ikut dicabut. Tidak tersedia untuk akunmu sendiri, karena sesimu ikut berakhir sebelum password baru terlihat; ganti password sendiri dengan `sudo platform/p-lab-admin reset-password <username>`. |
 
 Password acak (dari tambah akun, import, atau reset password) tampil di modal
@@ -261,8 +276,9 @@ Aturan yang dijaga server:
 
 Halaman **Lab berjalan** menampilkan:
 
-- **Kapasitas**: perkiraan RAM yang terpakai dibanding `capacity.mem_mb`, jumlah deploy yang sedang berjalan dibanding `max_deploys`, dan batas `idle_minutes`.
+- **Kapasitas**: perkiraan RAM yang terpakai dibanding `capacity.mem_mb`, jumlah deploy yang sedang berjalan dibanding `max_deploys`, jumlah yang mengantre, dan batas `idle_minutes`.
 - **Daftar lab**: satu baris per lab per pengguna, dengan status (`berjalan`, `deploy` beserta tahapnya, atau `berhenti`), perkiraan RAM, aktivitas terakhir, dan sesinya.
+- **Antrian deploy**: posisi, pengguna (nama dan username), lab, alasan (`slot deploy` atau `RAM`), dan sejak kapan menunggu. Bagian ini hanya muncul kalau ada yang mengantre.
 
 Halaman ini memuat ulang sendiri tiap 10 detik, dan ada tombol segarkan manual.
 Kalau tidak ada lab yang berjalan, halaman menampilkan "Tidak ada lab yang berjalan."
@@ -324,9 +340,66 @@ Batasi ke subnet LAN, jangan ke seluruh internet. **Jangan membuka P-lab ke
 internet.**
 
 **Winbox:** perubahan yang dibuat lewat Winbox tetap direkam dan dinilai seperti
-di mode Pribadi (lihat [Memakai Winbox](penggunaan.md#memakai-winbox)). Namun
-akses Winbox per pengguna dari jaringan **belum tersedia**: alamat router ada di
-jaringan Docker server. Sementara ini pengguna memakai terminal di web.
+di mode Pribadi (lihat [Memakai Winbox](penggunaan.md#memakai-winbox)). Cara
+membukanya dari komputer siswa ada di [Winbox dari komputer siswa](#winbox-dari-komputer-siswa).
+
+## Winbox dari komputer siswa
+
+Di mode Server, siswa bisa membuka Winbox ke router labnya langsung dari
+komputernya sendiri, tanpa tunnel SSH. Fitur ini aktif kalau `winbox_ports`
+diisi di config. Kalau kosong atau `0`, panel Winbox hanya menampilkan alamat
+internal yang terjangkau dari mesin server (lihat [Winbox](penggunaan.md#memakai-winbox)).
+
+```yaml
+winbox_ports: 28000
+```
+
+Port tiap router dihitung dengan rumus:
+
+```
+port = winbox_ports + nomor_user × 8 + urutan_router
+```
+
+- `nomor_user`: nomor subnet management pengguna (0 sampai 255, kecuali 20 yang dipakai jaringan bawaan containerlab).
+- `urutan_router`: urutan router RouterOS di lab menurut nama, mulai dari 0. Maksimal 8 router per lab.
+
+Contoh: dengan `winbox_ports: 28000`, router pertama milik pengguna bernomor 3
+mendapat port 28000 + 3 × 8 + 0 = **28024**, dan router keduanya 28025. Siswa
+tidak perlu menghitung sendiri, karena panel Winbox di halaman lab menampilkan
+alamat jadinya.
+
+Rentang yang dipakai selalu 2048 port, mulai dari `winbox_ports` (contoh: 28000
+sampai 30047). Port ini di-publish oleh **Docker**, bukan dibuka oleh P-lab sendiri.
+Docker memasang aturan iptables-nya sendiri yang dilewati **sebelum** ufw/firewalld,
+jadi:
+
+- Tidak perlu `ufw allow` untuk rentang ini; port sudah terjangkau dari LAN begitu lab di-deploy.
+- Aturan `ufw allow from <subnet>` atau `ufw deny` **tidak** membatasi port ini. Untuk
+  membatasi ke subnet LAN, pakai chain `DOCKER-USER`. Docker sudah mengubah port tujuan
+  menjadi 8291 saat paket sampai di chain itu, jadi cocokkan port asli lewat conntrack
+  (contoh, sesuaikan subnet dan rentang; belum diuji di semua distro):
+
+  ```bash
+  sudo iptables -I DOCKER-USER -p tcp -m conntrack --ctorigdstport 28000:30047 ! -s 192.168.1.0/24 -j DROP
+  ```
+
+Setelah mengubah `winbox_ports`, jalankan `sudo systemctl restart p-lab`, lalu
+**deploy ulang** lab yang sedang berjalan: port dipasang saat deploy, jadi lab yang
+sudah jalan tetap memakai port lama (panel menampilkan port yang benar-benar terbuka).
+
+Langkah siswa:
+
+1. Deploy lab RouterOS, lalu tunggu router selesai boot.
+2. Buka panel **Winbox** di halaman lab, dan catat alamat `host:port` tiap router (mis. `192.168.1.10:28024`).
+3. Di Winbox, isi **Connect To** dengan alamat itu, lalu login `admin` dengan password `admin`.
+
+> [!WARNING]
+> **Catatan keamanan:** port Winbox terbuka untuk **semua komputer di LAN**, bukan
+> hanya untuk pemiliknya. Siapa pun di jaringan yang tahu alamat dan port router
+> siswa lain bisa membukanya, dan login router masih `admin`/`admin`. Pemisahan
+> antar-siswa di level jaringan untuk jalur ini **belum ditangani**. Pakai hanya di
+> jaringan yang saling percaya, dan jangan buka ke internet. Kalau tidak perlu,
+> biarkan `winbox_ports` kosong dan pakai terminal di web.
 
 ## HTTPS (opsional)
 
@@ -392,6 +465,7 @@ Pahami batasannya sebelum membuka ke banyak orang.
 
 - **Node containerlab umumnya berjalan privileged.** Pengguna yang berniat jahat berpotensi keluar dari container dan mengakses mesin server. Mode Server cocok untuk lingkungan yang **saling percaya**: kelas, kantor, tim sendiri. Jangan dipakai untuk publik atau peserta yang tidak dikenal.
 - **Isolasi jaringan:** tiap pengguna mendapat jaringan management sendiri, yang dirancang supaya router satu siswa tidak bisa menjangkau router siswa lain (mengandalkan isolasi antar-bridge milik Docker). Ini belum diuji di deploy nyata, jadi cek sendiri di mesinmu: dari CLI router, coba ping IP management router siswa lain. Router tetap bisa menjangkau mesin server (gateway `172.20.n.1`, termasuk port web) serta LAN/internet lewat NAT, dan login router masih `admin/admin`. Ini bukan batas keamanan terhadap pengguna yang berniat jahat (lihat poin pertama).
+- **Port Winbox** (kalau `winbox_ports` diisi) berada di luar isolasi ini dan terbuka untuk seluruh LAN: lihat [Winbox dari komputer siswa](#winbox-dari-komputer-siswa).
 - **Jangan menjalankan lab mode Pribadi (`./reset.sh` tanpa `LAB_INSTANCE`) di mesin Server:** lab itu memakai jaringan `clab` yang akses luarnya terbuka, sehingga bisa dijangkau router siswa.
 - Isi [`allowed_hosts`](#konfigurasi) supaya permintaan dengan `Host` asing ditolak (mencegah DNS rebinding), dan isi `trusted_proxies` kalau memakai proxy.
 - Pengguna yang sudah login bisa mengetik command bebas di terminal node lab mereka. Itu memang tujuan lab ini.
@@ -456,7 +530,8 @@ dihapus**, jadi kamu bisa migrasi lagi nanti tanpa kehilangan akun.
 | Halaman tidak terbuka dari komputer lain | Cek `listen` (bukan `127.0.0.1`), `systemctl status p-lab`, dan firewall ([akses](#akses-dari-komputer-lain)). |
 | `--check` melaporkan port dipakai | Proses lain memakai port itu. Ganti `listen` di `server.yaml`, atau hentikan proses yang memakainya (`ss -ltnp`). |
 | `--check` melaporkan KVM tidak ada | Hanya mempengaruhi lab RouterOS. Aktifkan virtualisasi di BIOS/VM, atau tawarkan `net-001` saja. |
-| Deploy ditolak karena kapasitas penuh | Total `capacity.mem_mb` terpakai. Tunggu lab lain dimatikan (`idle_minutes`), atau naikkan batas kalau RAM memang tersedia. |
+| Deploy ditolak: "melebihi batas server" | Perkiraan RAM satu lab sudah lebih dari `capacity.mem_mb`. Minta admin menaikkan batas, atau pilih lab yang lebih kecil. |
+| Deploy mengantre lama, atau dibatalkan karena menunggu lebih dari 30 menit | Server sedang penuh. Tunggu lab lain dimatikan (`idle_minutes`), lalu deploy lagi. Naikkan batas kalau RAM memang tersedia ([antrian](#antrian-deploy)). |
 | Lab hilang setelah ditinggal sebentar | Dimatikan otomatis setelah `idle_minutes` (halaman lab tertutup dan tidak ada command). Sesi yang belum dinilai tidak bisa dilanjutkan; deploy lagi dan mulai sesi baru. Sesi yang sudah dinilai tetap ada di riwayat. |
 | Service gagal start, `Permission denied` di journal | Folder repo tidak bisa dilewati user `plab` ([syarat folder](#syarat-folder-repo)); pindahkan ke `/opt/p-lab` atau `chmod o+x` folder induknya. |
 | `p-lab-admin`: "Jalankan: sudo platform/p-lab-admin ..." | Database akun milik `plab`; pakai `sudo`. Jangan menjalankan `p-lab-admin` sebagai root dengan `LAB_DB` diarahkan ke `data_dir`: itu membuat database milik root. |
@@ -465,6 +540,7 @@ dihapus**, jadi kamu bisa migrasi lagi nanti tanpa kehilangan akun.
 | Login ditolak padahal password benar | Akun mungkin nonaktif: aktifkan lagi di dashboard admin, atau `sudo platform/p-lab-admin list`, lalu `activate <username>`. |
 | Muncul permintaan login lagi setelah lama | Sesi login 12 jam. Login ulang; lab yang berjalan tidak terpengaruh. |
 | Import CSV: baris gagal | Lihat nomor barisnya. Biasanya username berhuruf besar atau bertitik, atau password kurang dari 8 karakter. |
+| Winbox tidak tersambung dari komputer lain | Pastikan `winbox_ports` diisi, lab di-deploy ulang setelah `winbox_ports` diubah, tidak ada aturan `DOCKER-USER` yang memblokir, dan alamat yang dipakai sama dengan yang ada di panel ([Winbox](#winbox-dari-komputer-siswa)). |
 
 ## Belum tersedia
 
@@ -474,5 +550,3 @@ Versi ini belum punya fitur berikut. Sementara itu ada jalan keluarnya.
 |---|---|
 | Hapus akun dari web | nonaktifkan akun di [dashboard admin](#dashboard-admin); data akun dan riwayatnya tetap tersimpan |
 | Beberapa kelas per server | satu server untuk satu kelas; kelas lain memakai server terpisah |
-| Antrian deploy | deploy yang melewati batas ditolak dengan pesan; pengguna mencoba lagi sendiri |
-| Akses Winbox per pengguna dari jaringan | pakai terminal di web (perubahan lewat Winbox yang sudah ada tetap dinilai) |

@@ -31,6 +31,16 @@ data_dir: /var/lib/p-lab
 # kalau P-lab di belakang nginx/caddy; header dari alamat lain diabaikan.
 # trusted_proxies: [127.0.0.1]
 
+# Winbox dari komputer siswa. 0 / dihapus = nonaktif (Winbox hanya lewat alamat
+# management container, terjangkau dari mesin server saja). Isi port dasar (1024-63488)
+# untuk mempublikasikan port Winbox tiap router RouterOS milik user di semua
+# alamat server: port = winbox_ports + indeks subnet user * 8 + urutan router
+# (maks. 8 router RouterOS per lab). Rentang yang dipakai 2048 port, mis. 28000
+# -> 28000-30047/tcp; buka rentang itu di firewall (sudo ufw allow 28000:30047/tcp).
+# Router tetap admin/admin: semua komputer di jaringan yang bisa menjangkau
+# server bisa mencoba port itu.
+# winbox_ports: 28000
+
 # Gaya penggunaan:
 #   mandiri  tiap user memainkan instance labnya sendiri; leaderboard
 #            menampilkan nama dan poin semua user

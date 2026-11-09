@@ -65,7 +65,7 @@ import ros  # noqa: E402
 import sessions  # noqa: E402
 from accounts import AccountStore  # noqa: E402
 from checkpoints import Lab  # noqa: E402
-from instance import Instance  # noqa: E402
+from instance import Instance, InstanceError  # noqa: E402
 from hints import HintError, hint_list, open_hint, used_levels  # noqa: E402
 from llm import LLMError, list_providers  # noqa: E402
 from transcript import NosRules, build_timeline, load_events  # noqa: E402
@@ -341,18 +341,32 @@ def _cached_ip(lab, node):
     return ip
 
 
-def gui_access(lab, running):
+def gui_access(lab, running, host=None):
     """Alamat Winbox router RouterOS yang sedang jalan. Perubahan dari Winbox ikut
-    dinilai lewat guiwatch.py. IP management berubah tiap deploy: cache per sesi."""
+    dinilai lewat guiwatch.py. IP management berubah tiap deploy: cache per sesi.
+
+    Mode Server dengan winbox_ports: port host yang di-publish saat render
+    (instance.py), dengan `host` = nama server yang dipakai browser (header Host),
+    supaya alamatnya bisa dibuka dari komputer siswa (published=True).
+    """
     rows = []
+    try:
+        published = lab.instance.winbox_ports() if settings().is_server and host else {}
+    except InstanceError as error:   # mis. lebih dari 8 router: tampilkan alamat internal saja
+        log.warning("Port Winbox %s tidak bisa dihitung: %s", lab.instance.clab_name, error)
+        published = {}
     for node in running or []:
         if lab.kinds.get(node) != ros.ROS_KIND:
             continue
+        if node in published:
+            rows.append({"node": node, "host": host, "port": published[node], "published": True,
+                         "user": ros.USERNAME, "password": ros.PASSWORD})
+            continue
         try:
-            host = _cached_ip(lab, node)
+            ip = _cached_ip(lab, node)
         except (ConnectionError, OSError, subprocess.TimeoutExpired):
             continue
-        rows.append({"node": node, "host": host, "port": 8291,
+        rows.append({"node": node, "host": ip, "port": 8291,
                      "user": ros.USERNAME, "password": ros.PASSWORD})
     return rows
 
@@ -437,20 +451,76 @@ class DeployJobs:
 
     reset.sh mendapat env instance (LAB_INSTANCE, LAB_CLAB_NAME, ...), jadi yang
     di-destroy/deploy hanya lab containerlab `<nama>-<user>` milik user itu.
-    Satu user hanya boleh men-deploy satu lab dalam satu waktu (busy()).
+    Satu user hanya boleh men-deploy satu lab dalam satu waktu (busy()), termasuk
+    yang masih mengantre.
+
+    Antrian (mode Server): `queue` = daftar Instance FIFO, jobnya (status "queued")
+    ada di `jobs` dengan dict yang sama dengan yang nanti dijalankan. Semua perubahan
+    queue (enqueue/cancel/drop/promote) dilakukan pemanggil DENGAN memegang DEPLOY_GATE.
     """
 
     def __init__(self):
         self.jobs = {}  # Instance -> state
         self.lock = threading.Lock()
+        self.queue = []  # Instance yang mengantre, kepala di indeks 0 (dijaga DEPLOY_GATE)
 
     def get(self, inst):
         job = self.jobs.get(inst)
-        return {k: v for k, v in job.items() if k != "log"} if job else None
+        if not job:
+            return None
+        view = {k: v for k, v in job.items() if k != "log"}
+        if job["status"] == "queued":
+            try:
+                view["position"] = self.queue.index(inst) + 1
+            except ValueError:   # sempat terbaca di antara dua langkah di bawah gate
+                view["position"] = None
+        return view
 
     def busy(self, user, exclude=None):
-        """Ada deploy milik `user` (nama instance) yang berjalan, selain `exclude`?"""
-        return any(j["status"] == "running" for i, j in self.jobs.items() if i.user == user and i != exclude)
+        """Ada deploy milik `user` (nama instance) yang berjalan/mengantre, selain `exclude`?"""
+        return any(j["status"] in ("running", "queued")
+                   for i, j in self.jobs.items() if i.user == user and i != exclude)
+
+    def queued(self, inst):
+        job = self.jobs.get(inst)
+        return bool(job and job["status"] == "queued")
+
+    def enqueue(self, inst, reason):
+        """Taruh `inst` di ekor antrian. Pemanggil memegang DEPLOY_GATE."""
+        job = {"status": "queued", "step": None, "started": None, "error": None, "log": [],
+               "queue_reason": reason, "queued_at": time.time()}
+        with self.lock:
+            self.jobs[inst] = job
+        self.queue.append(inst)
+        return self.get(inst)
+
+    def cancel(self, inst):
+        """Batalkan entri antrian (job dihapus). Pemanggil memegang DEPLOY_GATE. True kalau ada."""
+        if inst not in self.queue or not self.queued(inst):
+            return False
+        self.queue.remove(inst)
+        with self.lock:
+            self.jobs.pop(inst, None)
+        return True
+
+    def drop(self, inst, error):
+        """Keluarkan entri dari antrian dengan job berstatus error. Pemanggil memegang DEPLOY_GATE."""
+        if inst in self.queue:
+            self.queue.remove(inst)
+        job = self.jobs.get(inst)
+        if job and job["status"] == "queued":
+            job.update(status="error", error=error, finished=time.time())
+            job.pop("queue_reason", None)
+            job.pop("queued_at", None)
+
+    def snapshot(self):
+        """[(Instance, posisi, alasan, queued_at)] urut posisi (aman dipanggil tanpa gate)."""
+        rows = []
+        for pos, inst in enumerate(list(self.queue), 1):
+            job = self.jobs.get(inst)
+            if job and job["status"] == "queued":
+                rows.append((inst, pos, job.get("queue_reason"), job.get("queued_at")))
+        return rows
 
     def running(self, inst):
         job = self.jobs.get(inst)
@@ -463,8 +533,14 @@ class DeployJobs:
             job = self.jobs.get(inst)
             if job and job["status"] == "running":
                 return self.get(inst)
-            job = {"status": "running", "step": None, "started": time.time(), "error": None, "log": []}
-            self.jobs[inst] = job
+            if job and job["status"] == "queued":
+                # Promosi dari antrian: dict yang sama, supaya UI yang polling melihat transisinya.
+                job.update(status="running", started=time.time(), error=None, log=[])
+                job.pop("queue_reason", None)
+                job.pop("queued_at", None)
+            else:
+                job = {"status": "running", "step": None, "started": time.time(), "error": None, "log": []}
+                self.jobs[inst] = job
         # env LAB_INSTANCE dkk.: reset-lab men-deploy instance ini (instance.py).
         threading.Thread(target=self._run, args=(job, inst.problem_dir, inst.env(), inst, destroy_first, on_finish),
                          daemon=True).start()
@@ -481,7 +557,10 @@ class DeployJobs:
                 with DEPLOY_GATE:
                     STOPPING.difference_update(destroy_first)
             if on_finish:
-                on_finish()
+                try:
+                    on_finish()
+                except Exception:  # noqa: BLE001 - jangan sampai thread mati diam-diam
+                    log.exception("on_finish deploy gagal")
 
     def _deploy(self, job, directory, env, inst, destroy_first):
         if inst is not None:
@@ -541,6 +620,8 @@ class DeployJobs:
 
 DEPLOYS = DeployJobs()
 DEPLOY_GATE = threading.Lock()
+QUEUE_TIMEOUT = 1800   # detik; entri antrian yang menunggu lebih lama dibatalkan
+QUEUE_POLL = 10        # detik; cek antrian di lifespan (untuk RAM; slot deploy dipicu release_deploy)
 
 
 # --- state sesi live --------------------------------------------------------------
@@ -566,7 +647,8 @@ def armed(lab):
     return bool(lab.session) and (lab.state / "ground_truth.json").exists()
 
 
-def live_state(inst):
+def live_state(inst, host=None):
+    """host: nama server dari header Host (untuk alamat Winbox di mode Server)."""
     lab = Lab(inst)
     problem = lab.problem
     lab_id = problem["id"]
@@ -589,7 +671,7 @@ def live_state(inst):
     return {
         "lab": lab_id, "session": lab.session, "nodes": nodes,
         "running": running,
-        "gui_access": gui_access(lab, running),
+        "gui_access": gui_access(lab, running, host),
         "started": events[0]["ts"] if events else None,
         "created": session_start(lab.session),
         "commands": len(commands),
@@ -950,9 +1032,12 @@ def stop_lab(inst, reason="manual"):
     """Matikan satu lab atas perintah admin (dashboard). Sesi yang belum dinilai
     diarsipkan dulu. Kembalikan session_id arsipnya atau None."""
     try:
-        with stopping(inst):
-            RUNTIMES.stop(inst)
-            archived = capacity.destroy(inst, reason=reason)
+        try:
+            with stopping(inst):
+                RUNTIMES.stop(inst)
+                archived = capacity.destroy(inst, reason=reason)
+        finally:
+            kick_queue()   # gate sudah dilepas; slot/RAM mungkin kosong
     except LabBusy as busy:
         raise HTTPException(409, str(busy))
     except capacity.CapacityError as error:
@@ -996,6 +1081,8 @@ def reap_labs_once():
             continue
         except Exception as error:  # noqa: BLE001
             log.warning("gagal mematikan lab %s: %s", inst.clab_name, error)
+    if targets:
+        kick_queue()
     return targets
 
 
@@ -1006,6 +1093,15 @@ async def reap_labs():
             await asyncio.to_thread(reap_labs_once)
         except Exception:  # noqa: BLE001 - jangan sampai task berhenti diam-diam
             log.exception("Reaper lab gagal")
+
+
+async def promote_queue():
+    while True:
+        await asyncio.sleep(QUEUE_POLL)
+        try:
+            await asyncio.to_thread(process_queue)
+        except Exception:  # noqa: BLE001 - jangan sampai task berhenti diam-diam
+            log.exception("Antrian deploy gagal diproses")
 
 
 async def purge_sessions():
@@ -1023,7 +1119,8 @@ async def purge_sessions():
 
 @asynccontextmanager
 async def lifespan(_app):
-    tasks = [asyncio.create_task(purge_sessions()), asyncio.create_task(reap_labs())] if settings().is_server else []
+    tasks = ([asyncio.create_task(purge_sessions()), asyncio.create_task(reap_labs()),
+              asyncio.create_task(promote_queue())] if settings().is_server else [])
     yield
     for task in tasks:
         task.cancel()
@@ -1128,8 +1225,10 @@ def lab_detail(lab_id: str, user: dict = Depends(current_user)):
 
 
 @app.get("/api/labs/{lab_id}/session")
-def session_state(lab_id: str, user: dict = Depends(current_user)):
-    return live_state(instance(lab_dir(lab_id), user))
+def session_state(lab_id: str, user: dict = Depends(current_user), request: Request = None):
+    # request terakhir dan opsional: test lama memanggil session_state(lab_id, user) langsung.
+    host = host_name(request.headers.get("host")) if request is not None else None
+    return live_state(instance(lab_dir(lab_id), user), host)
 
 
 @app.post("/api/labs/{lab_id}/runtime")
@@ -1160,7 +1259,9 @@ def hint(lab_id: str, body: HintRequest, user: dict = Depends(current_user)):
 def start(lab_id: str, user: dict = Depends(current_user)):
     lab = user_lab(lab_id, user)
     if DEPLOYS.busy(lab.instance.user):
-        raise HTTPException(409, "Lab sedang di-deploy.")
+        queued = any(DEPLOYS.queued(i) for i in list(DEPLOYS.jobs) if i.user == lab.instance.user)
+        raise HTTPException(409, "Deploy kamu sedang mengantre; sesi dimulai setelah deploy selesai."
+                            if queued else "Lab sedang di-deploy.")
     if lab.instance in STOPPING:
         raise HTTPException(409, BUSY_MESSAGE["stop"])
     if armed(lab) and not evaluated(lab):
@@ -1171,6 +1272,117 @@ def start(lab_id: str, user: dict = Depends(current_user)):
         raise HTTPException(409, str(error))
     RUNTIMES.ensure(lab.instance, session)
     return {"session": session, "new": True}
+
+
+def _admit(inst):
+    """Satu-satunya keputusan admisi deploy (endpoint dan process_queue). WAJIB di bawah DEPLOY_GATE.
+
+    Mengembalikan salah satu:
+      ("started", job)        deploy berjalan (reservasi kapasitas dipegang job, dilepas on_finish)
+      ("queue", decision)     busy/memory: layak mengantre (reservasi tidak dipegang)
+      ("wait", (kode, msg))   kondisi sementara (docker tersendat, lab ini/lab lain user ini sedang
+                              dinilai atau dimatikan): endpoint menolak dengan pesan ini, antrian
+                              MENUNGGU (entri yang sudah lama mengantre tidak dibuang karenanya)
+      ("reject", (kode, msg)) ditolak permanen
+    Reservasi kapasitas dilepas di semua jalur selain "started".
+    """
+    cap = AUTH.capacity
+    if DEPLOYS.busy(inst.user, exclude=inst):
+        return "reject", (409, "Lab lain sedang di-deploy atau mengantre.")
+    if evaluating(inst):
+        return "wait", (409, "Sesi sedang dinilai.")
+    if inst in STOPPING:
+        return "wait", (409, BUSY_MESSAGE["stop"])
+    if cap is None:
+        return "started", DEPLOYS.start(inst)
+    decision = cap.try_acquire(inst.user, inst)
+    if not decision:
+        if decision.code in ("busy", "memory"):
+            return "queue", decision
+        if decision.code == "docker":
+            return "wait", (503, decision.reason)
+        return "reject", (503, decision.reason)
+    destroy = set(decision.destroy)
+    # Lab yang akan dimatikan sedang dinilai: membunuhnya menghilangkan skor (biaya LLM sudah terpakai).
+    if any(evaluating(other) for other in destroy):
+        cap.release_deploy(inst)
+        return "wait", (409, "Lab kamu yang lain sedang dinilai. Tunggu sampai selesai, lalu deploy lagi.")
+    if STOPPING & destroy:
+        cap.release_deploy(inst)
+        return "wait", (409, "Lab kamu yang lain sedang dimatikan. Coba lagi sebentar lagi.")
+    # Lab lain yang akan dimatikan job ini ditandai sekarang (dilepas di DeployJobs._run).
+    STOPPING.update(destroy)
+    try:
+        job = DEPLOYS.start(inst, destroy_first=decision.destroy, on_finish=lambda: _deploy_finished(inst))
+    except BaseException:
+        STOPPING.difference_update(destroy)
+        cap.release_deploy(inst)
+        raise
+    return "started", job
+
+
+def _deploy_finished(inst):
+    """on_finish deploy: lepas reservasi, lalu beri giliran ke antrian (di luar gate)."""
+    AUTH.capacity.release_deploy(inst)
+    kick_queue()
+
+
+def kick_queue():
+    """process_queue yang tidak pernah melempar (untuk pemicu: on_finish, stop_lab, reaper)."""
+    try:
+        process_queue()
+    except Exception:  # noqa: BLE001
+        log.exception("Antrian deploy gagal diproses")
+
+
+def process_queue():
+    """Promosikan kepala antrian deploy selama bisa (FIFO ketat). Sinkron, aman dari thread mana pun.
+
+    JANGAN dipanggil sambil memegang DEPLOY_GATE (Lock tidak reentrant); gate diambil di sini.
+    Entri kedaluwarsa atau milik akun nonaktif dibuang dari seluruh antrian; kepala yang ditolak
+    selain busy/memory menjadi error dan antrian lanjut ke entri berikutnya.
+    """
+    if AUTH.capacity is None or not DEPLOYS.queue:
+        return
+    # Akun dicek di luar gate (sqlite); entri baru yang masuk setelah snapshot dicek putaran berikutnya.
+    gone = set()
+    for inst in list(DEPLOYS.queue):
+        user = AUTH.accounts.get_user(inst.user)
+        if not user or not user.get("active"):
+            gone.add(inst)
+    with DEPLOY_GATE:
+        now = time.time()
+        for inst in list(DEPLOYS.queue):
+            job = DEPLOYS.jobs.get(inst)
+            if inst in gone:
+                DEPLOYS.drop(inst, "Akun dinonaktifkan.")
+            elif job and now - job.get("queued_at", now) > QUEUE_TIMEOUT:
+                DEPLOYS.drop(inst, "Antrian deploy dibatalkan: menunggu lebih dari 30 menit.")
+    while True:
+        with DEPLOY_GATE:
+            if not DEPLOYS.queue:
+                return
+            head = DEPLOYS.queue[0]
+            try:
+                kind, value = _admit(head)
+            except Exception as error:  # noqa: BLE001 - satu entri rusak tidak boleh menahan antrian
+                log.exception("Promosi antrian gagal")
+                if not DEPLOYS.running(head):
+                    AUTH.capacity.release_deploy(head)   # reservasi try_acquire tidak boleh bocor
+                DEPLOYS.drop(head, f"Deploy gagal: {error}")
+                continue
+            if kind == "queue":
+                DEPLOYS.jobs[head]["queue_reason"] = value.code
+                return
+            if kind == "wait":
+                # FIFO ketat: kepala menunggu kondisi sementaranya selesai, tidak dibuang.
+                log.info("antrian menunggu %s: %s", head.clab_name, value[1])
+                return
+            if kind == "started":
+                if head in DEPLOYS.queue:
+                    DEPLOYS.queue.remove(head)
+            else:
+                DEPLOYS.drop(head, value[1])
 
 
 @app.post("/api/labs/{lab_id}/deploy")
@@ -1186,37 +1398,59 @@ def deploy(lab_id: str, user: dict = Depends(current_user)):
     if unbuilt:
         raise HTTPException(409, f"Image {', '.join(unbuilt)} belum dibangun. Jalankan: {image_hint(unbuilt[0])}")
     inst = instance(directory, user)
-    if DEPLOYS.busy(inst.user, exclude=inst):
-        raise HTTPException(409, "Lab lain sedang di-deploy.")
-    job = JOBS.get(inst, Lab(inst).session)
-    if job and job["status"] == "running":
-        raise HTTPException(409, "Sesi sedang dinilai.")
-    if AUTH.capacity is None:
-        with DEPLOY_GATE:
-            if inst in STOPPING:
-                raise HTTPException(409, BUSY_MESSAGE["stop"])
-            return DEPLOYS.start(inst)
-    # Mode Server. Cek + reservasi + start satu langkah: request ganda (klik dua kali, dua
+    # Cek + reservasi + start satu langkah di bawah gate: request ganda (klik dua kali, dua
     # tab) tidak boleh membuat dua reservasi untuk satu instance.
     with DEPLOY_GATE:
-        if DEPLOYS.running(inst):
+        if DEPLOYS.running(inst) or DEPLOYS.queued(inst):
             return DEPLOYS.get(inst)
-        if inst in STOPPING:
-            raise HTTPException(409, BUSY_MESSAGE["stop"])
-        decision = AUTH.capacity.try_acquire(inst.user, inst)
-        if not decision:
-            raise HTTPException(409 if decision.code == "busy" else 503, decision.reason)
-        # Lab yang akan dimatikan sedang dinilai: membunuhnya menghilangkan skor (biaya LLM sudah terpakai).
-        if any(evaluating(other) for other in decision.destroy):
-            AUTH.capacity.release_deploy(inst)
-            raise HTTPException(409, "Lab kamu yang lain sedang dinilai. Tunggu sampai selesai, lalu deploy lagi.")
-        if STOPPING & set(decision.destroy):
-            AUTH.capacity.release_deploy(inst)
-            raise HTTPException(409, "Lab kamu yang lain sedang dimatikan. Coba lagi sebentar lagi.")
-        # Lab lain yang akan dimatikan job ini ditandai sekarang (dilepas di DeployJobs._run).
-        STOPPING.update(decision.destroy)
-        return DEPLOYS.start(inst, destroy_first=decision.destroy,
-                             on_finish=lambda: AUTH.capacity.release_deploy(inst))
+        if AUTH.capacity is not None and DEPLOYS.queue:
+            # FIFO ketat: selama ada yang mengantre, deploy baru ikut di ekor (tidak menyalip).
+            # Pemeriksaan penuhnya dilakukan _admit lewat process_queue di bawah.
+            # Pemeriksaan murah tanpa docker supaya yang pasti ditolak tidak menunggu sampai jadi kepala.
+            if DEPLOYS.busy(inst.user, exclude=inst):
+                raise HTTPException(409, "Lab lain sedang di-deploy atau mengantre.")
+            cap = AUTH.capacity
+            need = cap.estimate(inst)
+            if need > cap.cap.mem_mb:
+                raise HTTPException(503, f"Lab {lab_id} butuh perkiraan {need} MB RAM, melebihi batas server "
+                                         f"({cap.cap.mem_mb} MB). Minta admin menaikkan capacity.mem_mb.")
+            if evaluating(inst):
+                raise HTTPException(409, "Sesi sedang dinilai.")
+            if inst in STOPPING:
+                raise HTTPException(409, BUSY_MESSAGE["stop"])
+            with cap.cond:
+                full = len(cap.deploying) >= cap.cap.max_deploys
+            DEPLOYS.enqueue(inst, "busy" if full else "memory")
+            kick = True
+        else:
+            kind, value = _admit(inst)
+            if kind in ("reject", "wait"):
+                raise HTTPException(*value)
+            if kind == "started":
+                return value
+            DEPLOYS.enqueue(inst, value.code)
+            kick = False   # _admit baru saja menjawab "antre": tidak perlu memeriksa ulang sekarang
+    if kick:
+        # Antrian sudah ada: kepalanya mungkin bisa jalan sekarang (mis. slot baru kosong).
+        kick_queue()
+    return DEPLOYS.get(inst)
+
+
+@app.delete("/api/labs/{lab_id}/deploy")
+def cancel_deploy(lab_id: str, user: dict = Depends(current_user)):
+    inst = instance(lab_dir(lab_id), user)
+    with DEPLOY_GATE:
+        cancelled = DEPLOYS.cancel(inst)
+    if not cancelled:
+        raise HTTPException(409, "Tidak ada antrian deploy untuk lab ini.")
+    kick_queue()   # kepala yang dibatalkan bisa menahan entri di belakangnya
+    return {"ok": True}
+
+
+def deploy_queue_view():
+    """Hook dashboard: [{"instance", "position", "reason", "queued_at"}] urut posisi."""
+    return [{"instance": inst, "position": pos, "reason": reason, "queued_at": at}
+            for inst, pos, reason, at in DEPLOYS.snapshot()]
 
 
 class EvaluateRequest(BaseModel):
@@ -1408,7 +1642,7 @@ async def session_ws(websocket: WebSocket, lab_id: str):
             job_sig = json.dumps(job, sort_keys=True, default=str)
             if sig != last_sig or job_sig != last_job:
                 last_sig, last_job = sig, job_sig
-                state = await asyncio.to_thread(live_state, inst)
+                state = await asyncio.to_thread(live_state, inst, host_name(websocket.headers.get("host")))
                 await websocket.send_json(state)
             await asyncio.wait({gone}, timeout=0.5)
     except (WebSocketDisconnect, RuntimeError):
@@ -1439,7 +1673,7 @@ dashboard.bind(
     accounts=lambda: AUTH.accounts, capacity=lambda: AUTH.capacity,
     all_lab_dirs=all_lab_dirs, lab_dir=lab_dir, user_sessions=user_sessions, points=points,
     session_payload=session_payload, lab_busy=lab_busy, deploy_job=DEPLOYS.get,
-    last_seen=LAST_SEEN.get, stop_lab=stop_lab,
+    last_seen=LAST_SEEN.get, stop_lab=stop_lab, deploy_queue=deploy_queue_view,
 )
 import admin_accounts  # noqa: E402
 import admin_labs  # noqa: E402

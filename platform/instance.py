@@ -46,6 +46,7 @@ import re
 import shlex
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 import yaml
@@ -80,8 +81,57 @@ MGMT_POOL = range(256)
 MGMT_SKIP = {20}
 
 
+# --- port Winbox per user -------------------------------------------------------------
+# Port host = winbox_ports + indeks subnet user * 8 + slot (urutan nama node RouterOS).
+# Satu fungsi (winbox_port) dipakai render (reset-lab) dan server, jadi keduanya sepakat.
+WINBOX_SLOTS = 8
+WINBOX_CTR_PORT = 8291
+
+
+_YAML_CACHE = {}          # path -> ((mtime_ns, size), data); lihat load_yaml
+_YAML_LOCK = threading.Lock()
+_Loader = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+
+
+def load_yaml(path):
+    """yaml.safe_load(file) dengan cache per (mtime, ukuran) file.
+
+    Kapasitas membuat Instance untuk setiap lab yang berjalan di setiap keputusan
+    deploy (40 lab = ~80 file YAML); tanpa cache itu ~0,7 detik di bawah DEPLOY_GATE.
+    Mengembalikan salinan (deepcopy) supaya pemanggil yang mengubah dict tidak
+    merusak cache.
+    """
+    path = Path(path)
+    st = path.stat()
+    stamp = (st.st_mtime_ns, st.st_size)
+    with _YAML_LOCK:
+        hit = _YAML_CACHE.get(path)
+    if hit and hit[0] == stamp:
+        return copy.deepcopy(hit[1])
+    data = yaml.load(path.read_text(), Loader=_Loader)
+    with _YAML_LOCK:
+        if len(_YAML_CACHE) > 512:
+            _YAML_CACHE.clear()
+        _YAML_CACHE[path] = (stamp, data)
+    return copy.deepcopy(data)
+
+
 class InstanceError(ValueError):
     pass
+
+
+def winbox_base():
+    """winbox_ports dari config; config tidak ada/rusak = 0 (nonaktif). Malas: config
+    diimpor saat dipakai, bukan saat import modul."""
+    import config
+    try:
+        return config.load().winbox_ports
+    except (config.ConfigError, OSError):
+        return 0
+
+
+def winbox_port(base, mgmt_index, slot):
+    return base + mgmt_index * WINBOX_SLOTS + slot
 
 
 _config_cache = {}
@@ -224,9 +274,9 @@ class Instance:
         problem_file = self.problem_dir / "problem.yaml"
         if not problem_file.is_file():
             raise InstanceError(f"Tidak ada problem.yaml di {self.problem_dir}")
-        self.problem = yaml.safe_load(problem_file.read_text())
+        self.problem = load_yaml(problem_file)
         self.source_topology = self.problem_dir / self.problem["lab_topology"]
-        self.topology = yaml.safe_load(self.source_topology.read_text())
+        self.topology = load_yaml(self.source_topology)
         self.base_name = self.topology["name"]
 
         if self.is_local:
@@ -309,7 +359,52 @@ class Instance:
         for section in ("kinds", "groups", "nodes"):
             if isinstance(body.get(section), dict):
                 body[section] = {k: self._fix_node(v) for k, v in body[section].items()}
+        base = winbox_base()
+        if base:
+            index = _read_mgmt(instances_dir() / self.user / MGMT_FILE)   # sudah dialokasikan di atas
+            for node, port in self._winbox_map(base, index).items():
+                spec = body["nodes"][node]
+                if not isinstance(spec, dict):   # `node: null` di YAML
+                    spec = body["nodes"][node] = {}
+                # Jangan menimpa `ports` bawaan soal (lablint menolaknya, tapi tetap aman).
+                spec["ports"] = [*(spec.get("ports") or []), f"{port}:{WINBOX_CTR_PORT}"]
         return topo
+
+    def _ros_nodes(self):
+        """Nama node RouterOS di topologi soal, terurut (urutan = slot port Winbox)."""
+        import ros   # malas: ros mengimpor instance di tingkat modul
+        nodes = (self.topology.get("topology") or {}).get("nodes") or {}
+        return sorted(n for n in nodes if ros.node_kind(self.topology, n) == ros.ROS_KIND)
+
+    def winbox_ports(self):
+        """{node RouterOS: port host Winbox} yang benar-benar di-publish container.
+
+        Dibaca dari topologi hasil render (ditulis reset-lab saat deploy), bukan
+        dihitung ulang dari config: kalau admin mengubah/menyalakan winbox_ports
+        saat lab berjalan, container masih memakai port lama sampai deploy ulang,
+        dan panel harus menampilkan port yang memang terbuka. Kosong kalau local,
+        belum pernah dirender, atau render tanpa port Winbox.
+        """
+        if self.is_local or not self.topology_file.is_file():
+            return {}
+        try:
+            nodes = ((load_yaml(self.topology_file) or {}).get("topology") or {}).get("nodes") or {}
+        except (OSError, yaml.YAMLError):
+            return {}
+        ports = {}
+        for name, spec in nodes.items():
+            for mapping in (spec or {}).get("ports") or []:
+                host_port, _, ctr_port = str(mapping).rpartition(":")
+                if ctr_port == str(WINBOX_CTR_PORT) and host_port.rpartition(":")[2].isdigit():
+                    ports[name] = int(host_port.rpartition(":")[2])
+        return ports
+
+    def _winbox_map(self, base, index):
+        names = self._ros_nodes()
+        if len(names) > WINBOX_SLOTS:
+            raise InstanceError(f"Winbox per user mendukung maks. {WINBOX_SLOTS} router RouterOS per lab, "
+                                f"topologi ini punya {len(names)}.")
+        return {n: winbox_port(base, index, i) for i, n in enumerate(names)}
 
     def render(self):
         """Siapkan direktori instance + topologi hasil render. local: tidak menulis apa pun."""

@@ -297,5 +297,100 @@ class TestUsernameRules(unittest.TestCase):
         self.assertRaises(accounts.AccountError, accounts.validate_username, "local")
 
 
+class TestWinbox(InstanceCase):
+    """Port Winbox per user: rumus base + indeks*8 + slot, sama di render dan winbox_ports()."""
+
+    def setUp(self):
+        super().setUp()
+        self.base = 28000
+        patcher = mock.patch.object(instance, "winbox_base", lambda: self.base)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def nodes(self, lab_id, user):
+        inst = Instance(LABS / lab_id, user)
+        topo = yaml.safe_load(inst.render().read_text())
+        return inst, topo["topology"]["nodes"]
+
+    def ports(self, nodes):
+        return {n: s["ports"] for n, s in nodes.items() if "ports" in s}
+
+    def test_render_ros_only_with_formula(self):
+        inst, nodes = self.nodes("net-003", "alice")
+        index = instance._read_mgmt(self.tmp / "instances" / "alice" / "mgmt.json")
+        ros_nodes = sorted(n for n, s in nodes.items() if s.get("kind", "linux") == "mikrotik_ros"
+                           or (n in inst.topology["topology"]["nodes"]
+                               and inst.topology["topology"]["nodes"][n].get("kind") == "mikrotik_ros"))
+        self.assertGreaterEqual(len(ros_nodes), 2)
+        want = {n: [f"{28000 + index * 8 + i}:8291"] for i, n in enumerate(ros_nodes)}
+        self.assertEqual(self.ports(nodes), want)          # node linux tidak punya ports
+        self.assertEqual(len({p[0] for p in want.values()}), len(ros_nodes))
+        self.assertEqual(inst.winbox_ports(), {n: int(p[0].split(":")[0]) for n, p in want.items()})
+
+    def test_panel_follows_rendered_topology_not_live_config(self):
+        # Config diubah saat lab berjalan: container masih mem-publish port lama sampai deploy ulang.
+        inst, _ = self.nodes("net-003", "alice")
+        before = inst.winbox_ports()
+        self.base = 30000
+        self.assertEqual(inst.winbox_ports(), before)
+        self.base = 0
+        self.assertEqual(inst.winbox_ports(), before)
+        inst.render()                                      # deploy ulang = render ulang
+        self.assertEqual(inst.winbox_ports(), {})
+
+    def test_winbox_ports_before_render_is_empty(self):
+        self.assertEqual(Instance(LABS / "net-003", "alice").winbox_ports(), {})
+        self.assertFalse((self.tmp / "instances" / "alice" / "mgmt.json").exists())
+
+    def test_local_and_disabled(self):
+        self.assertEqual(Instance(LABS / "net-003").winbox_ports(), {})
+        self.assertNotIn("ports", str(Instance(LABS / "net-003").rendered_topology()))
+        self.base = 0
+        inst, nodes = self.nodes("net-003", "alice")
+        self.assertEqual(self.ports(nodes), {})
+        self.assertEqual(inst.winbox_ports(), {})
+
+    def test_two_users_do_not_collide(self):
+        a, _ = self.nodes("net-003", "alice")
+        b, _ = self.nodes("net-003", "bob")
+        pa, pb = a.winbox_ports(), b.winbox_ports()
+        self.assertTrue(pa and pb)
+        self.assertFalse(set(pa.values()) & set(pb.values()))
+
+    def test_more_than_eight_routers(self):
+        src = self.tmp / "lab"
+        src.mkdir()
+        nodes = {f"r{i}": {"kind": "mikrotik_ros", "image": "x"} for i in range(9)}
+        (src / "problem.yaml").write_text("lab_topology: t.clab.yaml\n")
+        (src / "t.clab.yaml").write_text(yaml.safe_dump({"name": "t", "topology": {"nodes": nodes}}))
+        with self.assertRaises(InstanceError):
+            Instance(src, "alice").render()
+
+    def test_existing_ports_kept_and_defaults_kind(self):
+        src = self.tmp / "lab"
+        src.mkdir()
+        (src / "problem.yaml").write_text("lab_topology: t.clab.yaml\n")
+        topo = {"name": "t", "topology": {"defaults": {"kind": "mikrotik_ros"},
+                                          "nodes": {"b": {"ports": ["9999:80"]}, "a": None}}}
+        (src / "t.clab.yaml").write_text(yaml.safe_dump(topo))
+        inst = Instance(src, "alice")
+        nodes = yaml.safe_load(inst.render().read_text())["topology"]["nodes"]
+        index = instance._read_mgmt(self.tmp / "instances" / "alice" / "mgmt.json")
+        self.assertEqual(nodes["a"]["ports"], [f"{28000 + index * 8}:8291"])
+        self.assertEqual(nodes["b"]["ports"], ["9999:80", f"{28000 + index * 8 + 1}:8291"])
+
+
+class TestWinboxBase(unittest.TestCase):
+    def test_reads_config_and_failsafe(self):
+        with tempfile.TemporaryDirectory() as d:
+            cfg = Path(d) / "server.yaml"
+            with mock.patch.dict(os.environ, {"LAB_CONFIG": str(cfg)}):
+                self.assertEqual(instance.winbox_base(), 0)          # file hilang = 0
+                cfg.write_text("mode: server\ndata_dir: /srv/x\nwinbox_ports: 30000\n")
+                self.assertEqual(instance.winbox_base(), 30000)
+                cfg.write_text("mode: server\nwinbox_ports: 5\n")
+                self.assertEqual(instance.winbox_base(), 0)          # config rusak = 0
+
+
 if __name__ == "__main__":
     unittest.main()

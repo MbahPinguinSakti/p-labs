@@ -69,6 +69,10 @@
 .stopButton {
   white-space: nowrap;
 }
+.queueTable th:last-child,
+.queueTable td:last-child {
+  text-align: left;
+}
 
 @media (max-width: 1100px) {
   .capGrid {

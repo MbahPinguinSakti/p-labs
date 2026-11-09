@@ -18,6 +18,8 @@ Keputusan desain:
 - Mode server mewajibkan data_dir absolut: unit systemd jalan dengan direktori
   kerja yang berbeda, path relatif akan menunjuk tempat yang tidak disangka.
 - Tidak ada efek samping saat import: file baru dibaca di load().
+- winbox_ports (publikasi port Winbox per user) hanya bermakna di mode server; nilai
+  bukan 0 di mode pribadi ERROR (alasan sama). 0 selalu boleh.
 - allowed_hosts / trusted_proxies hanya bermakna di mode server; di mode pribadi
   keduanya ERROR (alasan sama dengan listen): Host pribadi selalu dikunci ke
   localhost, dan tidak ada proxy di depan server yang hanya listen di 127.0.0.1.
@@ -39,7 +41,9 @@ LOCAL_HOST = "127.0.0.1"
 DEFAULT_PORT = 8000
 SERVER_DATA_DIR = "/var/lib/p-lab"
 
-KNOWN_KEYS = {"mode", "listen", "data_dir", "style", "capacity", "allowed_hosts", "trusted_proxies"}
+KNOWN_KEYS = {"mode", "listen", "data_dir", "style", "capacity", "allowed_hosts", "trusted_proxies", "winbox_ports"}
+WINBOX_SPAN = 2048     # 256 indeks subnet x 8 slot router; rentang port yang dipakai = winbox_ports .. +2047
+WINBOX_MIN, WINBOX_MAX = 1024, 65535 - (WINBOX_SPAN - 1)
 CAPACITY_KEYS = {"mem_mb", "max_deploys", "idle_minutes"}
 HOSTNAME_RE = re.compile(r"[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?")
 
@@ -74,6 +78,9 @@ class Config:
     allowed_hosts: tuple = ()
     # ipaddress.ip_network: reverse proxy yang header X-Forwarded-* -nya dipercaya.
     trusted_proxies: tuple = ()
+    # Port dasar publikasi Winbox per user (0 = nonaktif). Rentang yang dipakai:
+    # winbox_ports .. winbox_ports + 2047 (rumus port ada di instance.winbox_port).
+    winbox_ports: int = 0
     path: Path = None            # file config yang dibaca (None = default bawaan)
 
     @property
@@ -263,9 +270,18 @@ def from_dict(data, path=None):
                 problems.append(f"{key} hanya berlaku di mode server; mode pribadi selalu hanya menerima "
                                 "localhost. Hapus barisnya atau pakai `mode: server`.")
 
+    winbox = data.get("winbox_ports", 0)
+    if isinstance(winbox, bool) or not isinstance(winbox, int) or not (winbox == 0 or WINBOX_MIN <= winbox <= WINBOX_MAX):
+        problems.append(f"winbox_ports harus 0 (nonaktif) atau bilangan bulat {WINBOX_MIN}-{WINBOX_MAX} "
+                        f"(rentang {WINBOX_SPAN} port dari nilai itu harus muat sampai 65535), dapat {winbox!r}.")
+        winbox = 0
+    elif winbox and mode == "pribadi":
+        problems.append("winbox_ports hanya berlaku di mode server (instance user); mode pribadi memakai "
+                        "alamat management container. Hapus barisnya atau pakai `mode: server`.")
+
     if problems:
         raise ConfigError(problems, path)
-    return Config(mode=mode, host=host, port=port, data_dir=data_dir, style=style,
+    return Config(winbox_ports=winbox, mode=mode, host=host, port=port, data_dir=data_dir, style=style,
                   capacity=Capacity(**cap), allowed_hosts=tuple(dict.fromkeys(hosts)),
                   trusted_proxies=tuple(proxies), path=path)
 

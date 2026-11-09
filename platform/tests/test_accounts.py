@@ -249,6 +249,9 @@ class TestCLI(Base):
         self.assertEqual(r.returncode, 0, r.stderr)
         r = self.run_cli("create-user", "ani", "--name", "Ani", "--password-stdin", stdin="password1\n")
         self.assertEqual(r.returncode, 0, r.stderr)
+        # Setiap langkah terlihat: akun, role, nama, dan database yang ditulis.
+        self.assertIn('Akun dibuat: ani (siswa, nama "Ani")', r.stdout)
+        self.assertIn(f"Database : {self.db}", r.stdout)
         out = self.run_cli("list").stdout
         self.assertIn("boss", out)
         self.assertIn("2 akun", out)

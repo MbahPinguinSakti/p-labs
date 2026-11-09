@@ -283,6 +283,13 @@ button.hint:disabled {
   margin-bottom: var(--space-lg);
   align-items: center;
 }
+.queue {
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
 .startGrid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 340px) minmax(0, 1fr);

@@ -71,9 +71,13 @@ export type EvalJob = {
 };
 
 export type DeployJob = {
-  status: "running" | "done" | "error";
+  // queued (mode Server): menunggu slot deploy atau RAM; position 1-based di antrian FIFO.
+  status: "queued" | "running" | "done" | "error";
+  position?: number;
+  queue_reason?: "busy" | "memory";
+  queued_at?: number;
   step: "destroy" | "deploy" | "verify" | "inject" | "done" | null;
-  started: number;
+  started: number | null;
   finished?: number;
   error: string | null;
 };
@@ -88,7 +92,8 @@ export type LiveState = {
   commands?: number;
   // source: perubahan dari luar terminal (Winbox/WebFig/API), direkam dari konfigurasi router.
   activity?: { id: string; node: string; command: string; ts: number; exit: number | null; state_change: boolean; source?: string | null }[];
-  gui_access?: { node: string; host: string; port: number; user: string; password: string }[];
+  // published: port host yang bisa dibuka dari komputer lain (mode Server, winbox_ports); host = alamat server.
+  gui_access?: { node: string; host: string; port: number; user: string; password: string; published?: boolean }[];
   checkpoints?: LiveCheckpoint[];
   hints?: { level: number; penalty: number; opened: boolean; text: string | null }[];
   evaluated?: boolean;
@@ -212,9 +217,20 @@ export type AdminLab = {
   busy: "deploy" | "evaluate" | "stop" | null;
 };
 
+export type AdminQueueEntry = {
+  username: string;
+  display_name: string;
+  lab_id: string;
+  title: string;
+  position: number;
+  reason: "busy" | "memory";
+  queued_at: number;
+};
+
 export type AdminLabs = {
   capacity: { used_mb: number; limit_mb: number; deploying: number; max_deploys: number; idle_minutes: number };
   labs: AdminLab[];
+  queue: AdminQueueEntry[];
 };
 
 export type ClassStudent = {
@@ -280,6 +296,7 @@ export const api = {
   hint: (id: string, level?: number) =>
     request<{ level: number; text: string; penalty: number; new: boolean }>("POST", `/labs/${id}/hint`, { level: level ?? null }),
   deploy: (id: string) => request<DeployJob>("POST", `/labs/${id}/deploy`),
+  cancelDeploy: (id: string) => request<{ ok: boolean }>("DELETE", `/labs/${id}/deploy`),
   start: (id: string) => request<{ session: string; new: boolean }>("POST", `/labs/${id}/start`),
   evaluate: (id: string, useLlm: boolean) => request<EvalJob>("POST", `/labs/${id}/evaluate`, { use_llm: useLlm }),
   result: (id: string, session: string) => request<SessionResult>("GET", `/labs/${id}/sessions/${session}`),

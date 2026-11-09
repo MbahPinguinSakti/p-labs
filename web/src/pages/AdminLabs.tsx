@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { PageHeader } from "../components/Layout";
 import { Modal } from "../components/Modal";
-import { api, type AdminLab, type AdminLabs as AdminLabsData } from "../lib/api";
+import { api, type AdminLab, type AdminLabs as AdminLabsData, type AdminQueueEntry } from "../lib/api";
 import { num } from "../lib/format";
 import { useApi } from "../lib/hooks";
 import s from "./AdminLabs.module.css";
@@ -46,7 +46,9 @@ function Status({ lab }: { lab: AdminLab }) {
   return <span className="chip">berhenti</span>;
 }
 
-function Capacity({ c }: { c: AdminLabsData["capacity"] }) {
+const QUEUE_REASON = { busy: "slot deploy", memory: "RAM" } as const;
+
+function Capacity({ c, queued }: { c: AdminLabsData["capacity"]; queued: number }) {
   const pct = c.limit_mb > 0 ? Math.min(100, (c.used_mb / c.limit_mb) * 100) : 0;
   return (
     <section className="panel" aria-labelledby="kapasitas-judul">
@@ -77,6 +79,7 @@ function Capacity({ c }: { c: AdminLabsData["capacity"] }) {
           <p className={s.capValue}>
             {c.deploying} <span className="soft">/ {c.max_deploys}</span>
           </p>
+          {queued > 0 && <p className="soft">{queued} mengantre</p>}
         </div>
         <div>
           <p className="overline">Batas idle</p>
@@ -84,6 +87,48 @@ function Capacity({ c }: { c: AdminLabsData["capacity"] }) {
             {c.idle_minutes} <span className="soft">menit</span>
           </p>
         </div>
+      </div>
+    </section>
+  );
+}
+
+function Queue({ queue }: { queue: AdminQueueEntry[] }) {
+  const now = Date.now() / 1000;
+  return (
+    <section className="panel" aria-labelledby="antrian-judul">
+      <div className="panel-head">
+        <h2 id="antrian-judul">Antrian deploy</h2>
+        <span className="panel-meta">urut masuk (FIFO)</span>
+      </div>
+      <div className={s.tableWrap}>
+        <table className={`${s.table} ${s.queueTable}`} aria-label="Antrian deploy">
+          <thead>
+            <tr>
+              <th scope="col" className="overline">Posisi</th>
+              <th scope="col" className="overline">User</th>
+              <th scope="col" className="overline">Lab</th>
+              <th scope="col" className="overline">Alasan</th>
+              <th scope="col" className="overline">Menunggu sejak</th>
+            </tr>
+          </thead>
+          <tbody>
+            {queue.map((q) => (
+              <tr key={`${q.username}/${q.lab_id}`}>
+                <td>{q.position}</td>
+                <td>
+                  <span className={s.name}>{q.display_name}</span>
+                  <span className="soft">{q.username}</span>
+                </td>
+                <td>
+                  <span className={s.name}>{q.title}</span>
+                  <span className="soft mono">{q.lab_id}</span>
+                </td>
+                <td className="soft">{QUEUE_REASON[q.reason]}</td>
+                <td className="soft">{idleText(now - q.queued_at)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </section>
   );
@@ -117,6 +162,7 @@ export function AdminLabs() {
   };
 
   const labs = data?.labs ?? [];
+  const queue = data?.queue ?? [];
 
   return (
     <>
@@ -132,7 +178,8 @@ export function AdminLabs() {
       {stopError && <p className="notice notice-ember" role="alert">{stopError}</p>}
       {stopped && <p className="notice" role="status">{stopped}</p>}
 
-      {data && <Capacity c={data.capacity} />}
+      {data && <Capacity c={data.capacity} queued={queue.length} />}
+      {queue.length > 0 && <Queue queue={queue} />}
 
       {data && labs.length === 0 ? (
         <div className="empty">Tidak ada lab yang berjalan.</div>
