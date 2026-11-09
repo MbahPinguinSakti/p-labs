@@ -278,5 +278,30 @@ class TestCLI(Base):
         self.assertIn("baris 3", r.stderr)
 
 
+class TestDisplayNameAndLastSeen(Base):
+    def test_set_display_name(self):
+        self.store.create_user("ani", "password1", "siswa", "Ani")
+        self.assertEqual(self.store.set_display_name("ani", "  Ani Baru ")["display_name"], "Ani Baru")
+        self.assertEqual(self.store.get_user("ani")["display_name"], "Ani Baru")
+        for bad in ("", "   ", "x" * 101, None):
+            with self.assertRaises(AccountError):
+                self.store.set_display_name("ani", bad)
+        with self.assertRaises(AccountError):
+            self.store.set_display_name("hantu", "X")
+
+    def test_last_seen_map(self):
+        self.store.create_user("ani", "password1")
+        self.store.create_user("budi", "password1")
+        self.assertEqual(self.store.last_seen_map(), {})
+        self.store.login("ani", "password1")
+        self.clock.t += 50
+        token = self.store.login("ani", "password1")
+        self.clock.t += 10
+        self.store.user_for_token(token)
+        self.assertEqual(self.store.last_seen_map(), {"ani": self.clock.t})
+        self.clock.t += self.store.session_ttl + 1   # semua sesi kedaluwarsa
+        self.assertEqual(self.store.last_seen_map(), {})
+
+
 if __name__ == "__main__":
     unittest.main()

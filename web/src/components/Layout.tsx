@@ -15,6 +15,13 @@ const LEARN = [
   { to: "/belajar/networking", label: "Networking", icon: "network" },
 ];
 
+// Menu dashboard per role (mode Server). Halaman kelas hanya di gaya kelas.
+const ADMIN = [
+  { to: "/admin/akun", label: "Akun", icon: "user" },
+  { to: "/admin/lab", label: "Lab berjalan", icon: "flask" },
+];
+const CLASS = [{ to: "/kelas", label: "Progres kelas", icon: "users" }];
+
 function NavItem({ to, label, icon, end }: { to: string; label: string; icon: string; end?: boolean }) {
   return (
     <NavLink to={to} end={end} className={({ isActive }) => `${s.navItem} ${isActive ? s.navActive : ""}`}>
@@ -49,6 +56,24 @@ function ActiveSession() {
   );
 }
 
+function StaffNav() {
+  const { me } = useAppData();
+  const role = me?.auth ? me.user?.role : undefined;
+  const classItems = role === "admin" || role === "guru" ? (me?.style === "kelas" ? CLASS : []) : [];
+  const items = [...classItems, ...(role === "admin" ? ADMIN : [])];
+  if (!items.length) return null;
+  return (
+    <>
+      <p className={`overline ${s.section}`}>{role === "admin" ? "Admin" : "Guru"}</p>
+      <nav aria-label="Dashboard" className={s.nav}>
+        {items.map((item) => (
+          <NavItem key={item.to} {...item} />
+        ))}
+      </nav>
+    </>
+  );
+}
+
 export function Layout() {
   return (
     <div className={s.shell}>
@@ -70,6 +95,7 @@ export function Layout() {
             <NavItem key={item.to} {...item} />
           ))}
         </nav>
+        <StaffNav />
         <p className={`overline ${s.section}`}>Sesi aktif</p>
         <ActiveSession />
       </aside>

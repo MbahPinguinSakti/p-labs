@@ -118,6 +118,15 @@ def random_password():
     return "".join(secrets.choice(alphabet) for _ in range(12))
 
 
+MAX_DISPLAY_NAME = 100
+
+
+def validate_display_name(name):
+    if len(name) > MAX_DISPLAY_NAME:
+        raise AccountError(f"Nama tampilan maksimal {MAX_DISPLAY_NAME} karakter.")
+    return name
+
+
 def validate_username(username):
     if not isinstance(username, str) or not USERNAME_RE.fullmatch(username):
         raise AccountError("Username hanya boleh huruf kecil, angka, dan tanda minus "
@@ -199,6 +208,7 @@ class AccountStore:
         validate_role(role)
         check_password_policy(password)
         display = (display_name or "").strip() or username
+        validate_display_name(display)
         pw_hash = hash_password(password)
         with closing(self._connect()) as db:
             try:
@@ -284,6 +294,26 @@ class AccountStore:
                 db.execute("ROLLBACK")
                 raise
             return self._get(db, row["id"])
+
+    def set_display_name(self, user, name):
+        """Ganti nama tampilan. Nama kosong atau lebih dari MAX_DISPLAY_NAME karakter ditolak."""
+        name = (name or "").strip() if isinstance(name, str) else ""
+        if not name:
+            raise AccountError("Nama tampilan wajib diisi.")
+        validate_display_name(name)
+        with closing(self._connect()) as db:
+            row = self._row(db, user)
+            db.execute("UPDATE users SET display_name = ? WHERE id = ?", (name, row["id"]))
+            return self._get(db, row["id"])
+
+    def last_seen_map(self):
+        """{username: epoch last_seen terbaru} dari sesi login yang belum kedaluwarsa."""
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                "SELECT u.username, MAX(s.last_seen) AS seen FROM login_sessions s "
+                "JOIN users u ON u.id = s.user_id WHERE s.expires_at > ? GROUP BY u.id",
+                (self.clock(),))
+            return {r["username"]: r["seen"] for r in rows}
 
     def delete_user(self, user):
         with closing(self._connect()) as db:

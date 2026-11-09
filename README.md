@@ -30,6 +30,7 @@ jaringan sehat yang ikut rusak.
 | **Evaluator AI** | Menilai methodology dengan mengutip command yang kamu ketik. Provider bebas: Anthropic, OpenAI-compatible, atau LLM lokal ([konfigurasi](docs/instalasi.md#evaluator-ai)). |
 | **Hint berjenjang** | Setiap level punya potongan skor ([hint](docs/penggunaan.md#4-hint)). |
 | **Soal buatan sendiri** | Tambah lab baru dari template ([membuat lab](docs/membuat-lab.md)). |
+| **Mode Server** | Satu server untuk banyak pengguna lewat browser: akun dari admin, lab terpisah per orang, dashboard admin, dan halaman progres kelas untuk guru ([mode Server](docs/server.md)). |
 
 ## Cara kerja
 

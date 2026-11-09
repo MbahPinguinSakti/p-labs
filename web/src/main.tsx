@@ -12,6 +12,10 @@ import { Home } from "./pages/Home";
 import { Labs } from "./pages/Labs";
 import { LabSession } from "./pages/LabSession";
 import { Leaderboard } from "./pages/Leaderboard";
+import { AdminLabs } from "./pages/AdminLabs";
+import { AdminUsers } from "./pages/AdminUsers";
+import { ClassProgress } from "./pages/ClassProgress";
+import { ClassStudent } from "./pages/ClassStudent";
 import { Learn } from "./pages/Learn";
 import { Login } from "./pages/Login";
 import { NotFound } from "./pages/NotFound";
@@ -45,6 +49,12 @@ function App() {
         <Route path="progress" element={<Progress />} />
         <Route path="leaderboard" element={<Leaderboard />} />
         <Route path="belajar/:track" element={<Learn />} />
+        {/* Dashboard mode Server; server tetap memeriksa role (403/404). */}
+        <Route path="admin/akun" element={<AdminUsers />} />
+        <Route path="admin/lab" element={<AdminLabs />} />
+        <Route path="kelas" element={<ClassProgress />} />
+        <Route path="kelas/:username" element={<ClassStudent />} />
+        <Route path="kelas/:username/labs/:labId/sesi/:session" element={<Result />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>

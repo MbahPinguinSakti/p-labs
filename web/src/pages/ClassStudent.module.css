@@ -1,0 +1,66 @@
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  font-size: 13px;
+  color: var(--color-accent);
+}
+.crumbs > span {
+  color: var(--color-text-muted);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-lg);
+  margin: calc(-1 * var(--space-sm)) 0 var(--space-3xl);
+}
+
+/* Tabel lebar scroll horizontal di dalam panel, bukan seluruh halaman. */
+.scroll {
+  overflow-x: auto;
+  margin: calc(-1 * var(--space-xl)) calc(-1 * var(--space-3xl));
+  padding: 0 var(--space-3xl);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.table th,
+.table td {
+  padding: var(--space-md) var(--space-lg);
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--color-border);
+}
+.table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+.table tbody tr {
+  cursor: pointer;
+  transition: background-color 180ms var(--ease-out);
+}
+.table tbody tr:hover {
+  background: var(--color-surface-2);
+}
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.labName {
+  font-weight: 600;
+}
+.labName:hover {
+  color: var(--color-accent);
+}
+.score {
+  font-weight: 600;
+}
+
+@media (max-width: 960px) {
+  .stats {
+    grid-template-columns: 1fr;
+  }
+}

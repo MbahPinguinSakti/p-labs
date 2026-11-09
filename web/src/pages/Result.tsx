@@ -8,8 +8,12 @@ import { useApi } from "../lib/hooks";
 import s from "./Result.module.css";
 
 export function Result() {
-  const { labId = "", session = "" } = useParams();
-  const { data, error } = useApi(() => api.result(labId, session), [labId, session]);
+  // Rute guru (/kelas/:username/...) memakai endpoint kelas; rute siswa tetap seperti semula.
+  const { labId = "", session = "", username } = useParams();
+  const { data, error } = useApi(
+    () => (username ? api.classSession(username, labId, session) : api.result(labId, session)),
+    [labId, session, username],
+  );
   const [showTimeline, setShowTimeline] = useState(false);
   const timelineRef = useRef<HTMLElement>(null);
 
@@ -34,13 +38,23 @@ export function Result() {
     <>
       <PageHeader
         crumbs={
-          <nav className={s.crumbs} aria-label="Breadcrumb">
-            <Link to="/labs">Labs</Link>
-            <span>/</span>
-            <Link to={`/labs/${labId}`}>{data.title}</Link>
-            <span>/</span>
-            <span className="soft">{data.kind === "golden" ? `Golden ${session}` : `Sesi ${date(data.date)}`}</span>
-          </nav>
+          username ? (
+            <nav className={s.crumbs} aria-label="Breadcrumb">
+              <Link to="/kelas">Progres kelas</Link>
+              <span>/</span>
+              <Link to={`/kelas/${username}`}>{username}</Link>
+              <span>/</span>
+              <span className="soft">{data.title}</span>
+            </nav>
+          ) : (
+            <nav className={s.crumbs} aria-label="Breadcrumb">
+              <Link to="/labs">Labs</Link>
+              <span>/</span>
+              <Link to={`/labs/${labId}`}>{data.title}</Link>
+              <span>/</span>
+              <span className="soft">{data.kind === "golden" ? `Golden ${session}` : `Sesi ${date(data.date)}`}</span>
+            </nav>
+          )
         }
         title="Hasil evaluasi"
       />
@@ -74,9 +88,15 @@ export function Result() {
             <button type="button" className="btn btn-secondary" onClick={openTimeline}>
               Lihat timeline
             </button>
-            <Link to={`/labs/${labId}`} className="btn btn-primary">
-              Coba lagi
-            </Link>
+            {username ? (
+              <Link to={`/kelas/${username}`} className="btn btn-primary">
+                Kembali ke siswa
+              </Link>
+            ) : (
+              <Link to={`/labs/${labId}`} className="btn btn-primary">
+                Coba lagi
+              </Link>
+            )}
           </div>
         </div>
       </section>

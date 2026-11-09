@@ -188,10 +188,48 @@ export type LeaderEntry = {
   methodology_avg: number | null;
 };
 
-export type ClassProgress = {
-  labs: { id: string; title: string }[];
-  users: (User & { sessions: number; points: number; best_scores: Record<string, number>; last_session: number | null })[];
+// --- dashboard (mode Server). Kontrak: platform/admin_accounts.py, admin_labs.py, class_api.py
+
+export type AdminUser = User & { active: boolean; created_at: number; last_seen: number | null };
+
+export type ImportResult = {
+  created: { username: string; password: string | null }[];
+  errors: { line: number; message: string }[];
 };
+
+export type AdminLab = {
+  lab_id: string;
+  title: string;
+  username: string;
+  display_name: string;
+  clab_name: string;
+  mem_mb: number;
+  state: "running" | "deploying" | "stopped";
+  deploy_step: DeployJob["step"];
+  session: string | null;
+  last_activity: number | null;
+  idle_s: number | null;
+  busy: "deploy" | "evaluate" | "stop" | null;
+};
+
+export type AdminLabs = {
+  capacity: { used_mb: number; limit_mb: number; deploying: number; max_deploys: number; idle_minutes: number };
+  labs: AdminLab[];
+};
+
+export type ClassStudent = {
+  username: string;
+  display_name: string;
+  points: number;
+  sessions: number;
+  best_scores: Record<string, number>;
+  attempts: Record<string, number>;
+  last_session: number | null;
+};
+
+export type ClassProgress = { labs: { id: string; title: string }[]; students: ClassStudent[] };
+
+export type StudentDetail = { student: User; points: number; sessions: ProgressData["sessions"] };
 
 export class ApiError extends Error {
   status: number;
@@ -247,5 +285,25 @@ export const api = {
   result: (id: string, session: string) => request<SessionResult>("GET", `/labs/${id}/sessions/${session}`),
   progress: () => request<ProgressData>("GET", "/progress"),
   leaderboard: () => request<LeaderEntry[]>("GET", "/leaderboard"),
+  // admin
+  adminUsers: () => request<{ users: AdminUser[] }>("GET", "/admin/users"),
+  adminCreateUser: (body: { username: string; display_name?: string; role: Role; password?: string }) =>
+    request<{ user: AdminUser; password: string | null }>("POST", "/admin/users", body),
+  adminImportUsers: (csv: string, defaultRole: Role = "siswa") =>
+    request<ImportResult>("POST", "/admin/users/import", { csv, default_role: defaultRole }),
+  adminUpdateUser: (username: string, body: { display_name?: string; role?: Role; active?: boolean }) =>
+    request<{ user: AdminUser; stopped_labs: string[]; skipped_labs: string[] }>("PATCH", `/admin/users/${username}`, body),
+  adminResetPassword: (username: string, password?: string) =>
+    request<{ password: string | null }>("POST", `/admin/users/${username}/password`, { password: password || null }),
+  adminLabs: () => request<AdminLabs>("GET", "/admin/labs"),
+  adminStopLab: (username: string, labId: string) =>
+    request<{ ok: boolean; archived: string | null }>("POST", `/admin/labs/${username}/${labId}/stop`),
+  // guru (gaya kelas)
   classProgress: () => request<ClassProgress>("GET", "/class/progress"),
+  classStudent: (username: string) => request<StudentDetail>("GET", `/class/students/${username}`),
+  classSession: (username: string, labId: string, session: string) =>
+    request<SessionResult>("GET", `/class/students/${username}/labs/${labId}/sessions/${session}`),
 };
+
+// Unduhan CSV nilai kelas (link biasa: cookie ikut terkirim).
+export const CLASS_EXPORT_URL = "/api/class/export.csv";

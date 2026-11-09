@@ -12,6 +12,12 @@ halaman tidak terbuka, cek service-nya dengan `systemctl --user status p-lab`
 > dari admin. Sesi login berlaku 12 jam. Setiap pengguna punya lab, sesi,
 > progres, dan hasil sendiri; langkah di bawah sama saja.
 
+Menu di sidebar mengikuti role akunmu. **Siswa** melihat menu biasa (Home, Progress,
+Labs, dan seterusnya). **Guru** di gaya `kelas` melihat menu **Progres kelas**
+([halaman kelas](server.md#halaman-kelas)). **Admin** melihat **Akun** dan
+**Lab berjalan** ([dashboard admin](server.md#dashboard-admin)), ditambah
+**Progres kelas** di gaya `kelas`.
+
 **Isi halaman:** [Alur satu sesi](#alur-satu-sesi) · [Cara skor dihitung](#cara-skor-dihitung) ·
 [Membaca hasil](#membaca-hasil) · [Mode terminal](#mode-terminal-tanpa-web-ui) ·
 [Penyimpanan data](#di-mana-data-disimpan)

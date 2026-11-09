@@ -21,6 +21,18 @@ const PATHS: Record<string, React.ReactNode> = {
       <path d="M12 7.5V12M5.5 16.5V12h13v4.5" />
     </>
   ),
+  user: (
+    <>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21a8 8 0 0 1 16 0" />
+    </>
+  ),
+  users: (
+    <>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6.5 6.5 0 0 1 3.5 6" />
+    </>
+  ),
   shield: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />,
   bulb: (
     <>

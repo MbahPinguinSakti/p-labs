@@ -620,16 +620,6 @@ class TestKelas(ServerCase):
         self.assertEqual({e["username"] for e in board}, {"alice", "bob"})
         self.assertFalse(any(e["you"] for e in board))
 
-    def test_class_progress(self):
-        data = self.logged_in("guru1").get("/api/class/progress").json()
-        rows = {u["username"]: u for u in data["users"]}
-        self.assertEqual(rows["alice"]["sessions"], 1)
-        self.assertIn("net-001", rows["alice"]["best_scores"])
-        self.assertEqual(rows["bob"]["sessions"], 0)
-        self.assertEqual(data["labs"][0]["id"], "net-001")
-        self.assertEqual(self.logged_in("admin1").get("/api/class/progress").status, 200)
-        self.assertEqual(self.logged_in("alice").get("/api/class/progress").status, 403)
-
 
 class TestHostCheck(ServerCase):
     """allowed_hosts: header Host lain ditolak (DNS rebinding) untuk HTTP dan WebSocket."""

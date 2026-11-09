@@ -477,6 +477,9 @@ class DeployJobs:
             log.exception("Deploy gagal")
             job.update(status="error", error=f"Deploy gagal: {error}", finished=time.time())
         finally:
+            if destroy_first:
+                with DEPLOY_GATE:
+                    STOPPING.difference_update(destroy_first)
             if on_finish:
                 on_finish()
 
@@ -899,6 +902,65 @@ async def terminal_instance(websocket, lab_id):
     return await asyncio.to_thread(ws_instance, websocket, lab_id)
 
 
+STOPPING = set()        # Instance yang sedang dimatikan (stop_lab, reaper, deploy lab lain); dijaga DEPLOY_GATE
+BUSY_MESSAGE = {"deploy": "Lab sedang di-deploy.", "evaluate": "Sesi lab ini sedang dinilai.",
+                "stop": "Lab sedang dimatikan."}
+
+
+class LabBusy(Exception):
+    def __init__(self, reason):
+        super().__init__(BUSY_MESSAGE[reason])
+        self.reason = reason
+
+
+def lab_busy(inst):
+    """None, atau alasan lab ini tidak boleh dimatikan/di-deploy sekarang."""
+    if inst in STOPPING:
+        return "stop"
+    if DEPLOYS.running(inst):
+        return "deploy"
+    if evaluating(inst):
+        return "evaluate"
+    return None
+
+
+@contextlib.contextmanager
+def stopping(inst):
+    """Tandai `inst` sedang dimatikan selama blok berjalan (LabBusy kalau sibuk).
+
+    Destroy makan puluhan detik dan berjalan di luar DEPLOY_GATE. Tanpa tanda ini,
+    selama destroy lab tampak menganggur: admin yang menonaktifkan akun dan reaper
+    (akun nonaktif = orphan) mematikan lab yang sama dua kali, dan Deploy/Nilai dari
+    pemiliknya berjalan di tengah destroy. Deploy, penilaian, dan mulai sesi
+    memeriksa STOPPING di bawah DEPLOY_GATE.
+    """
+    with DEPLOY_GATE:
+        busy = lab_busy(inst)
+        if busy:
+            raise LabBusy(busy)
+        STOPPING.add(inst)
+    try:
+        yield
+    finally:
+        with DEPLOY_GATE:
+            STOPPING.discard(inst)
+
+
+def stop_lab(inst, reason="manual"):
+    """Matikan satu lab atas perintah admin (dashboard). Sesi yang belum dinilai
+    diarsipkan dulu. Kembalikan session_id arsipnya atau None."""
+    try:
+        with stopping(inst):
+            RUNTIMES.stop(inst)
+            archived = capacity.destroy(inst, reason=reason)
+    except LabBusy as busy:
+        raise HTTPException(409, str(busy))
+    except capacity.CapacityError as error:
+        raise HTTPException(500, str(error))
+    LAST_SEEN.pop(inst, None)
+    return archived.name if archived else None
+
+
 REAP_INTERVAL = 60
 LAST_SEEN = {}          # Instance -> epoch terakhir halaman lab terbuka (WebSocket live)
 
@@ -914,7 +976,7 @@ def reap_labs_once():
     cap = AUTH.capacity
 
     def busy(inst):
-        return DEPLOYS.running(inst) or evaluating(inst)
+        return lab_busy(inst) is not None
 
     active = {u["username"] for u in AUTH.accounts.list_users() if u["active"]}
     targets = {inst: "orphan" for inst in cap.orphan_candidates(active)}
@@ -925,12 +987,13 @@ def reap_labs_once():
     for inst, reason in targets.items():
         # Satu instance bermasalah tidak boleh menghentikan putaran untuk instance lain.
         try:
-            if busy(inst):
-                continue
-            RUNTIMES.stop(inst)
-            capacity.destroy(inst, reason=reason)
+            with stopping(inst):
+                RUNTIMES.stop(inst)
+                capacity.destroy(inst, reason=reason)
             LAST_SEEN.pop(inst, None)
             log.info("lab %s dimatikan (%s)", inst.clab_name, reason)
+        except LabBusy:
+            continue
         except Exception as error:  # noqa: BLE001
             log.warning("gagal mematikan lab %s: %s", inst.clab_name, error)
     return targets
@@ -1098,6 +1161,8 @@ def start(lab_id: str, user: dict = Depends(current_user)):
     lab = user_lab(lab_id, user)
     if DEPLOYS.busy(lab.instance.user):
         raise HTTPException(409, "Lab sedang di-deploy.")
+    if lab.instance in STOPPING:
+        raise HTTPException(409, BUSY_MESSAGE["stop"])
     if armed(lab) and not evaluated(lab):
         return {"session": lab.session, "new": False}
     try:
@@ -1127,12 +1192,17 @@ def deploy(lab_id: str, user: dict = Depends(current_user)):
     if job and job["status"] == "running":
         raise HTTPException(409, "Sesi sedang dinilai.")
     if AUTH.capacity is None:
-        return DEPLOYS.start(inst)
+        with DEPLOY_GATE:
+            if inst in STOPPING:
+                raise HTTPException(409, BUSY_MESSAGE["stop"])
+            return DEPLOYS.start(inst)
     # Mode Server. Cek + reservasi + start satu langkah: request ganda (klik dua kali, dua
     # tab) tidak boleh membuat dua reservasi untuk satu instance.
     with DEPLOY_GATE:
         if DEPLOYS.running(inst):
             return DEPLOYS.get(inst)
+        if inst in STOPPING:
+            raise HTTPException(409, BUSY_MESSAGE["stop"])
         decision = AUTH.capacity.try_acquire(inst.user, inst)
         if not decision:
             raise HTTPException(409 if decision.code == "busy" else 503, decision.reason)
@@ -1140,6 +1210,11 @@ def deploy(lab_id: str, user: dict = Depends(current_user)):
         if any(evaluating(other) for other in decision.destroy):
             AUTH.capacity.release_deploy(inst)
             raise HTTPException(409, "Lab kamu yang lain sedang dinilai. Tunggu sampai selesai, lalu deploy lagi.")
+        if STOPPING & set(decision.destroy):
+            AUTH.capacity.release_deploy(inst)
+            raise HTTPException(409, "Lab kamu yang lain sedang dimatikan. Coba lagi sebentar lagi.")
+        # Lab lain yang akan dimatikan job ini ditandai sekarang (dilepas di DeployJobs._run).
+        STOPPING.update(decision.destroy)
         return DEPLOYS.start(inst, destroy_first=decision.destroy,
                              on_finish=lambda: AUTH.capacity.release_deploy(inst))
 
@@ -1161,7 +1236,10 @@ def evaluate_session(lab_id: str, body: EvaluateRequest, user: dict = Depends(cu
         # transcript siswa dikirim: keputusan pemilik server (admin), bukan siswa
         # atau guru. Yang lain memakai default server (LAB_LLM_PROVIDER/MODEL).
         provider = model = None
-    return JOBS.start(lab.instance, lab.session, body.use_llm, provider, model)
+    with DEPLOY_GATE:
+        if lab.instance in STOPPING:
+            raise HTTPException(409, BUSY_MESSAGE["stop"])
+        return JOBS.start(lab.instance, lab.session, body.use_llm, provider, model)
 
 
 SESSION_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*")
@@ -1184,7 +1262,12 @@ def session_result(lab_id: str, session: str, user: dict = Depends(current_user)
     # Golden transcript = jawaban lengkap soal. Pribadi: milik pemain itu sendiri.
     # Server: hanya guru/admin; siswa mendapat 404 yang sama dengan sesi yang tidak
     # ada (tidak membocorkan bahwa golden itu ada).
-    kind, path = find_session_dir(inst, session, golden=not settings().is_server or user["role"] in STAFF)
+    return session_payload(inst, session, golden=not settings().is_server or user["role"] in STAFF)
+
+
+def session_payload(inst, session, golden):
+    """Laporan satu sesi yang sudah dinilai milik `inst` (juga dipakai halaman guru)."""
+    kind, path = find_session_dir(inst, session, golden=golden)
     if kind == "sessions":
         inst.ensure_marker()   # evaluate.Session mencari pemilik arsip lewat instance.json
     result = json.loads((path / "evaluation.json").read_text())
@@ -1291,30 +1374,6 @@ def golden_leaderboard(user):
     return ranked(entries)
 
 
-@app.get("/api/class/progress")
-def class_progress(_user: dict = Depends(require_role(*STAFF))):
-    """Ringkasan kelas untuk guru/admin (mode Server, gaya kelas): sesi dan skor terbaik per lab tiap user."""
-    cfg = settings()
-    if not (cfg.is_server and cfg.style == "kelas"):
-        raise HTTPException(404, "Ringkasan kelas hanya ada di mode Server dengan gaya kelas.")
-    labs_meta = []
-    for directory in all_lab_dirs():
-        problem = yaml.safe_load((directory / "problem.yaml").read_text())
-        labs_meta.append({"id": problem["id"], "title": problem["title"]})
-    users = []
-    for account in AUTH.accounts.list_users():
-        if not account["active"]:
-            continue
-        rows = user_sessions(account["username"])
-        best = {}
-        for row in rows:
-            if row["final_score"] is not None:
-                best[row["lab"]] = max(best.get(row["lab"], 0), row["final_score"])
-        users.append({**public_user(account), "sessions": len(rows), "points": points(rows),
-                      "best_scores": best, "last_session": rows[0]["date"] if rows else None})
-    return {"labs": labs_meta, "users": users}
-
-
 @app.websocket("/api/labs/{lab_id}/ws")
 async def session_ws(websocket: WebSocket, lab_id: str):
     # Ditolak sebelum accept() = handshake gagal (HTTP 403), tanpa membocorkan alasannya.
@@ -1369,6 +1428,25 @@ except ImportError as error:
 else:
     termbridge.set_resolver(terminal_instance)
     app.include_router(termbridge.router)
+
+
+# --- dashboard admin/guru (mode Server) --------------------------------------------
+
+import dashboard  # noqa: E402
+
+dashboard.bind(
+    settings=settings, current_user=current_user, public_user=public_user,
+    accounts=lambda: AUTH.accounts, capacity=lambda: AUTH.capacity,
+    all_lab_dirs=all_lab_dirs, lab_dir=lab_dir, user_sessions=user_sessions, points=points,
+    session_payload=session_payload, lab_busy=lab_busy, deploy_job=DEPLOYS.get,
+    last_seen=LAST_SEEN.get, stop_lab=stop_lab,
+)
+import admin_accounts  # noqa: E402
+import admin_labs  # noqa: E402
+import class_api  # noqa: E402
+
+for _router in (admin_accounts.router, admin_labs.router, class_api.router):
+    app.include_router(_router)
 
 
 # --- file statis (hasil `npm run build` di web/) ------------------------------------

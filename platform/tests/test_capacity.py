@@ -159,6 +159,9 @@ class TestDeploySlots(Case):
     def test_concurrent_threads(self):
         cap = self.cap(max_deploys=2)
         active, peak, lock = [0], [0], threading.Lock()
+        # Pemegang slot menunggu pasangannya sebelum melepas: dua deploy bersamaan pasti
+        # terjadi walau mesin lambat (sleep tetap bisa membuat giliran tidak tumpang tindih).
+        pair = threading.Barrier(2)
         results = []
 
         def worker(i):
@@ -170,7 +173,7 @@ class TestDeploySlots(Case):
             with lock:
                 active[0] += 1
                 peak[0] = max(peak[0], active[0])
-            time.sleep(0.05)
+            pair.wait(timeout=5)
             with lock:
                 active[0] -= 1
             cap.release_deploy(inst)

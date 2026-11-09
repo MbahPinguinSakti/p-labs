@@ -12,7 +12,8 @@ Kalau kamu hanya memakai P-lab sendirian, tetap di mode Pribadi
 
 **Isi halaman:** [Kebutuhan dan sizing](#kebutuhan-dan-sizing) ·
 [Instalasi](#instalasi) · [Konfigurasi](#konfigurasi) · [Kapasitas](#batas-kapasitas) · [Key LLM](#key-llm-untuk-nilai-dengan-ai) · [Akun](#akun) ·
-[Mandiri vs kelas](#gaya-mandiri-atau-kelas) · [Akses dari komputer lain](#akses-dari-komputer-lain) ·
+[Dashboard admin](#dashboard-admin) · [Mandiri vs kelas](#gaya-mandiri-atau-kelas) ·
+[Halaman kelas](#halaman-kelas) · [Akses dari komputer lain](#akses-dari-komputer-lain) ·
 [HTTPS](#https-opsional) · [Keamanan](#keamanan) · [Backup](#backup-dan-restore) ·
 [Migrasi dari Pribadi](#migrasi-dari-mode-pribadi) · [Masalah umum](#masalah-umum) ·
 [Belum tersedia](#belum-tersedia)
@@ -21,7 +22,7 @@ Kalau kamu hanya memakai P-lab sendirian, tetap di mode Pribadi
 
 - Service berjalan sebagai service systemd **system** dengan user `plab`, aktif sejak mesin menyala (tanpa perlu login ke desktop).
 - Login wajib. Tidak ada pendaftaran bebas: admin yang membuat akun.
-- Tiga role: `admin` (mengelola akun), `guru` (melihat progres siswa di gaya `kelas`), dan `siswa`.
+- Tiga role: `admin` (mengelola akun dan lab yang berjalan), `guru` (melihat progres siswa di gaya `kelas`), dan `siswa`.
 - Setiap pengguna mendapat **instance lab terpisah** di `<data_dir>/instances/<user>/<lab>/`.
 - Ada [batas kapasitas](#batas-kapasitas). Lab yang tidak disentuh dimatikan otomatis.
 - Konfigurasi ada di `/etc/p-lab/server.yaml`, data di `data_dir`.
@@ -166,8 +167,10 @@ hanya tombol penilaian AI yang tidak berfungsi.
 
 ## Akun
 
-Akun dikelola lewat CLI `platform/p-lab-admin`, dijalankan di mesin server.
-Tidak ada registrasi bebas. **Selalu pakai `sudo`**: database akun milik user `plab`
+Akun bisa dikelola dari [dashboard admin](#dashboard-admin) di web. CLI
+`platform/p-lab-admin` tetap ada, dijalankan di mesin server, dan dipakai untuk
+admin pertama serta saat web tidak bisa diakses. Tidak ada registrasi bebas.
+**Selalu pakai `sudo`** untuk CLI: database akun milik user `plab`
 (mode 0600), dan `p-lab-admin` berjalan sebagai `plab` supaya database tidak
 pernah dibuat milik root (yang membuat service gagal start). Tanpa `sudo`, user
 biasa ditolak dengan pesan yang menunjukkan perintah yang benar.
@@ -224,6 +227,51 @@ sudo platform/p-lab-admin import-csv kelas-10a.csv
 > `sudo install -o plab -m 600 daftar.csv /var/lib/p-lab/daftar.csv`, import,
 > lalu `sudo rm /var/lib/p-lab/daftar.csv`.
 
+## Dashboard admin
+
+Admin melihat bagian **Admin** di sidebar, berisi menu **Akun** dan **Lab berjalan**.
+Kedua halaman hanya bisa dibuka role `admin`.
+
+### Akun
+
+Halaman **Akun** menampilkan semua akun: nama, username, role, status aktif, dan
+terakhir terlihat (mis. "5 menit lalu"). Filter nama/username dan filter role ada di
+atas tabel.
+
+| Aksi | Yang terjadi |
+|---|---|
+| **Tambah akun** | Isi username, nama, role, dan password. Kosongkan password untuk dibuatkan password acak. |
+| **Import CSV** | Tempel isi CSV dengan kolom `username,display_name,role,password` di kotak teks, lalu pilih role default. CSV dari Excel dengan pemisah titik koma (`;`) juga diterima. Hasilnya berupa daftar akun yang berhasil dibuat beserta password acaknya, dan daftar baris yang gagal beserta pesannya. Seperti CLI, import berjalan per baris. |
+| **Ubah** | Membuka dialog untuk mengganti nama tampilan (maksimal 100 karakter) dan role, lalu **Simpan**. |
+| **Nonaktifkan** / **Aktifkan** | Minta konfirmasi. Saat dinonaktifkan, sesi login akun itu langsung berakhir dan lab-nya ikut dimatikan. Sesi yang belum dinilai diarsipkan sebagai ditinggalkan dan tidak bisa dilanjutkan. Kalau lab itu sedang di-deploy, dinilai, atau sedang dimatikan, lab itu dilewati dan dimatikan otomatis dalam satu menit setelah selesai (pesan sukses menyebut jumlahnya). |
+| **Reset password** | P-lab membuat password acak baru dan menampilkannya **sekali**. Semua sesi login akun itu ikut dicabut. Tidak tersedia untuk akunmu sendiri, karena sesimu ikut berakhir sebelum password baru terlihat; ganti password sendiri dengan `sudo platform/p-lab-admin reset-password <username>`. |
+
+Password acak (dari tambah akun, import, atau reset password) tampil di modal
+dengan tombol **Salin** dan peringatan untuk langsung mencatatnya. Setelah modal
+ditutup, password itu tidak bisa dilihat lagi; kalau hilang, lakukan reset password.
+Hasil import juga bisa disalin sebagai teks `username,password` per baris.
+
+Aturan yang dijaga server:
+
+- Admin tidak bisa menurunkan role, menonaktifkan, atau mereset password **akunnya sendiri** dari web. Di baris akunnya, tombol Nonaktifkan dan Reset password nonaktif, dan pilihan role di dialog Ubah terkunci.
+- Admin aktif terakhir tidak bisa dinonaktifkan atau diturunkan rolenya.
+- Tidak ada tombol hapus akun. Nonaktifkan saja (lihat [belum tersedia](#belum-tersedia)).
+
+### Lab berjalan
+
+Halaman **Lab berjalan** menampilkan:
+
+- **Kapasitas**: perkiraan RAM yang terpakai dibanding `capacity.mem_mb`, jumlah deploy yang sedang berjalan dibanding `max_deploys`, dan batas `idle_minutes`.
+- **Daftar lab**: satu baris per lab per pengguna, dengan status (`berjalan`, `deploy` beserta tahapnya, atau `berhenti`), perkiraan RAM, aktivitas terakhir, dan sesinya.
+
+Halaman ini memuat ulang sendiri tiap 10 detik, dan ada tombol segarkan manual.
+Kalau tidak ada lab yang berjalan, halaman menampilkan "Tidak ada lab yang berjalan."
+
+Tombol **Matikan** menghentikan lab satu pengguna. Sebelum dikonfirmasi, P-lab
+mengingatkan bahwa sesi yang belum dinilai akan diarsipkan sebagai ditinggalkan.
+Lab yang sedang di-deploy, sedang dinilai, atau sedang dimatikan tidak bisa dimatikan: tombolnya
+nonaktif, dan tooltip menjelaskan alasannya.
+
 ## Gaya mandiri atau kelas
 
 Diatur lewat `style` di config.
@@ -235,9 +283,30 @@ Diatur lewat `style` di config.
 | Guru | tidak ada peran khusus | melihat progres semua siswa |
 | Cocok untuk | tim IT, komunitas, belajar bareng | kelas dengan guru yang menilai |
 
-Di kedua gaya, siswa hanya melihat sesi dan hasilnya sendiri. API progres kelas
-(`/api/class/progress`) sudah ada, tetapi halaman dashboard guru di web
-[belum tersedia](#belum-tersedia).
+Di kedua gaya, siswa hanya melihat sesi dan hasilnya sendiri. Di gaya `kelas`,
+guru dan admin juga melihat progres semua siswa di [halaman kelas](#halaman-kelas).
+
+## Halaman kelas
+
+Halaman kelas hanya ada di gaya `kelas`. Menunya **Progres kelas** muncul di sidebar
+untuk guru dan admin. Di gaya `mandiri` menu ini tidak ada, dan tidak ada halaman
+yang menampilkan sesi siswa lain.
+
+- **Tabel progres** (`/kelas`): satu baris per siswa aktif dan satu kolom per lab.
+  Setiap sel berisi skor terbaik dan jumlah percobaan, atau `–` kalau belum
+  dikerjakan. Ada juga kolom poin, jumlah sesi, dan sesi terakhir. Tabel diurutkan
+  menurut poin; klik judul kolom nama untuk mengurutkan menurut nama. Klik baris
+  siswa untuk membuka detailnya. Poin dihitung seperti di halaman Progress: skor
+  terbaik tiap lab dijumlahkan, jadi mengulang lab tidak menambah poin.
+- **Detail siswa** (`/kelas/<username>`): nama dan poin siswa, lalu daftar sesinya
+  (lab, tanggal, durasi, jumlah command, skor, dan band). Klik sesi untuk membuka
+  laporannya, sama seperti halaman Hasil.
+- **Export CSV**: tombol di halaman progres mengunduh `nilai-kelas.csv` dengan kolom
+  `username`, `nama`, `poin`, `sesi`, lalu skor terbaik tiap lab (kosong kalau belum
+  dikerjakan). Sel yang diawali `=`, `+`, `-`, atau `@` diberi awalan `'` supaya
+  tidak dijalankan sebagai rumus saat dibuka di spreadsheet.
+
+Akun siswa yang nonaktif tidak ditampilkan.
 
 ## Akses dari komputer lain
 
@@ -392,8 +461,8 @@ dihapus**, jadi kamu bisa migrasi lagi nanti tanpa kehilangan akun.
 | Service gagal start, `Permission denied` di journal | Folder repo tidak bisa dilewati user `plab` ([syarat folder](#syarat-folder-repo)); pindahkan ke `/opt/p-lab` atau `chmod o+x` folder induknya. |
 | `p-lab-admin`: "Jalankan: sudo platform/p-lab-admin ..." | Database akun milik `plab`; pakai `sudo`. Jangan menjalankan `p-lab-admin` sebagai root dengan `LAB_DB` diarahkan ke `data_dir`: itu membuat database milik root. |
 | Halaman ditolak (Host tidak diizinkan) | Nama/IP yang kamu ketik tidak ada di `allowed_hosts`. Tambahkan lalu restart service. |
-| Pengguna lupa password | `sudo platform/p-lab-admin reset-password <username>`. |
-| Login ditolak padahal password benar | Akun mungkin nonaktif: `sudo platform/p-lab-admin list`, lalu `activate <username>`. |
+| Pengguna lupa password | Admin reset di [dashboard admin](#dashboard-admin), atau `sudo platform/p-lab-admin reset-password <username>`. |
+| Login ditolak padahal password benar | Akun mungkin nonaktif: aktifkan lagi di dashboard admin, atau `sudo platform/p-lab-admin list`, lalu `activate <username>`. |
 | Muncul permintaan login lagi setelah lama | Sesi login 12 jam. Login ulang; lab yang berjalan tidak terpengaruh. |
 | Import CSV: baris gagal | Lihat nomor barisnya. Biasanya username berhuruf besar atau bertitik, atau password kurang dari 8 karakter. |
 
@@ -403,7 +472,7 @@ Versi ini belum punya fitur berikut. Sementara itu ada jalan keluarnya.
 
 | Fitur | Sementara |
 |---|---|
-| Dashboard admin di web (kelola user, lihat lab yang berjalan) | pakai `platform/p-lab-admin`; lab berjalan dilihat lewat `docker ps` atau `sudo containerlab inspect --all` |
-| Halaman dashboard guru untuk gaya `kelas` | API `/api/class/progress` sudah ada, halaman web belum; guru memakai akun biasa |
-| Antrian otomatis saat kapasitas penuh | deploy yang melewati batas ditolak dengan pesan; pengguna mencoba lagi sendiri |
+| Hapus akun dari web | nonaktifkan akun di [dashboard admin](#dashboard-admin); data akun dan riwayatnya tetap tersimpan |
+| Beberapa kelas per server | satu server untuk satu kelas; kelas lain memakai server terpisah |
+| Antrian deploy | deploy yang melewati batas ditolak dengan pesan; pengguna mencoba lagi sendiri |
 | Akses Winbox per pengguna dari jaringan | pakai terminal di web (perubahan lewat Winbox yang sudah ada tetap dinilai) |
