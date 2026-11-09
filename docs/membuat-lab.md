@@ -60,7 +60,7 @@ Format [containerlab](https://containerlab.dev/manual/topo-def-file/). Tiga
 aturan wajib (dicek `lab-lint`):
 
 ```yaml
-name: net002                      # unik antar-lab; container jadi clab-net002-<node>
+name: net002                      # unik antar-lab; container jadi clab-net002-<node> (instance user: clab-net002-<user>-<node>)
 topology:
   defaults:
     kind: linux
@@ -75,6 +75,9 @@ topology:
 - Nama node hanya boleh huruf kecil, angka, dan `-`. Prefiksnya menentukan ikon
   di diagram: `sw*` jadi switch, `r<angka>` jadi router, `fw*` jadi firewall,
   dan sisanya host.
+- Jangan menulis blok `mgmt`, `mgmt-ipv4`/`mgmt-ipv6`, atau `ports` (di node,
+  `groups`, `kinds`, maupun `defaults`): semua instance berbagi satu docker host.
+  Jaringan management per user ditambahkan otomatis saat render instance.
 - Konfigurasi awal ditulis di `exec` tiap node. Isinya keadaan **sehat**; fault
   dipasang belakangan oleh `inject.sh`.
 
@@ -99,13 +102,14 @@ Kontraknya:
   oleh "Mulai sesi" di web untuk sesi ulang.
 - Argumen posisional bersifat opsional, dengan default sama seperti
   `parameters` di `problem.yaml`.
-- **Wajib menulis `.state/ground_truth.json`** berisi nilai fault yang
+- **Wajib menulis `$LAB_STATE_DIR/ground_truth.json`** berisi nilai fault yang
   sebenarnya dipakai. Kuncinya harus sama dengan nama di `parameters`, karena
   nilai ini menggantikan default saat `{{parameter}}` diisi. Evaluator AI
   menerimanya secara privat; pemain tidak pernah melihatnya.
 - Output-nya tidak ditampilkan ke pemain. Meski begitu, jangan mencetak lokasi
   fault, cukup `Fault injected.`.
-- Cukup memakai `docker exec clab-<name>-<node> ...` (tanpa sudo).
+- Tunjuk container dengan `docker exec "$(ctr <node>)" ...` (tanpa sudo), jangan
+  `clab-<name>-<node>`: setiap user punya instance lab sendiri dengan nama berbeda.
 
 ### `verify.sh`
 
@@ -134,6 +138,34 @@ Biarkan seperti di template: satu baris yang memanggil `platform/reset-lab`.
 Script itu membaca `problem.yaml`, lalu menjalankan destroy, membuat `.state/`
 baru, deploy, verify (harus sehat), dan inject.
 
+### Kontrak env script soal
+
+Lab yang sama bisa berjalan sebagai beberapa **instance** (satu per user), masing-masing
+dengan nama lab containerlab dan `.state/` sendiri. Karena itu `inject.sh` dan `verify.sh`
+tidak boleh menebak nama container atau lokasi state. Source helper ini di baris awal
+(sebelum `cd`):
+
+    source "$(dirname "$0")/../../platform/labenv.sh"
+
+| Nama | Isi |
+|---|---|
+| `LAB_STATE_DIR` | direktori state sesi; tulis `ground_truth.json` di sini |
+| `LAB_CLAB_NAME` | nama lab containerlab instance |
+| `LAB_TOPO` | file topologi instance |
+| `LAB_INSTANCE` | pemilik instance (`local` di install pribadi) |
+| `LAB_DIR` | direktori soal (absolut) |
+| `ctr <node>` | nama container node, mis. `docker exec "$(ctr sw1)" ...` |
+| `ros_exec <node> <cmd>` | satu command RouterOS lewat `platform/ros.py exec` |
+
+`reset-lab`, "Mulai sesi" di web, dan evaluator mengisi env ini. Kalau script dijalankan
+manual (`./inject.sh`), nilainya otomatis mengikuti layout lama (`labs/<id>/.state`, nama
+lab dari topologi). Untuk mencoba instance lain: `LAB_INSTANCE=coba ./reset.sh`.
+`lab-lint` menolak script yang menulis `clab-...` atau `.state/` langsung.
+
+Di topologi, tulis path (binds, `startup-config`) relatif terhadap direktori soal dan
+pertahankan `.state/events:/var/log/lab`; untuk instance user lain P-lab merendernya ke
+path absolut dan mengganti `name` menjadi `<name>-<user>`.
+
 ## Referensi `problem.yaml`
 
 `{{nama}}` di field mana pun diganti dengan nilai `parameters`. Nilainya
@@ -145,7 +177,7 @@ diambil dari `ground_truth.json` kalau file itu ada.
 |---|---|---|
 | `id` | ✓ | sama dengan nama folder, misalnya `net-002` |
 | `title` | ✓ | judul di kartu lab |
-| `category` | | `network-engineer`, `network-admin`, atau `cybersecurity` |
+| `category` | | `network-engineer` atau `network-admin` |
 | `difficulty` | | `beginner`, `intermediate`, atau `advanced` |
 | `lab_topology` | ✓ | nama file `.clab.yaml` |
 | `brief` | | default `brief.md` |
@@ -153,6 +185,7 @@ diambil dari `ground_truth.json` kalau file itu ada.
 | `ui.summary` | | satu kalimat di kartu lab (jangan membocorkan fault) |
 | `ui.ticket` | | nomor tiket yang tampil, misalnya `"#4127"` |
 | `design.links` | | label link di diagram, dengan kunci `"a:eth1 b:eth2"` persis seperti `endpoints`. Isinya kondisi **desain**, bukan state runtime |
+| `resources.mem_mb` | | perkiraan RAM satu instance lab (MB), untuk batas `capacity.mem_mb` di mode Server. Default dihitung dari topologi: ±400 MB per node `mikrotik_ros` (VM CHR 256 MB + qemu + vrnetlab), ±30 MB per node `linux`, 512 MB untuk kind lain. Isi kalau soal memakai kind lain atau VM dengan RAM besar |
 
 ### Fault dan tujuan
 

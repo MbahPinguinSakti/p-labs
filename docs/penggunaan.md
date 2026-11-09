@@ -6,6 +6,12 @@ Buka **http://localhost:8000**, atau klik ikon **P-lab** di menu aplikasi. Kalau
 halaman tidak terbuka, cek service-nya dengan `systemctl --user status p-lab`
 (lihat [instalasi](instalasi.md#service-web-ui)).
 
+> [!NOTE]
+> Di [mode Server](server.md), alamatnya adalah alamat mesin server
+> (mis. `http://192.168.1.10:8000`) dan kamu harus **login** dulu dengan akun
+> dari admin. Sesi login berlaku 12 jam. Setiap pengguna punya lab, sesi,
+> progres, dan hasil sendiri; langkah di bawah sama saja.
+
 **Isi halaman:** [Alur satu sesi](#alur-satu-sesi) · [Cara skor dihitung](#cara-skor-dihitung) ·
 [Membaca hasil](#membaca-hasil) · [Mode terminal](#mode-terminal-tanpa-web-ui) ·
 [Penyimpanan data](#di-mana-data-disimpan)

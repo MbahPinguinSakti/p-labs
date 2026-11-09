@@ -1,0 +1,53 @@
+# Konfigurasi P-lab mode Server.
+# Salin ke /etc/p-lab/server.yaml (install.sh --server melakukannya), isi, lalu:
+#   ./install.sh --server --check     cek kesiapan mesin (tidak mengubah apa pun)
+#   ./install.sh --server --migrate   peralihan dari mode Pribadi (minta konfirmasi)
+# Kembali ke Pribadi kapan saja: ./install.sh --revert-pribadi
+# Semua nilai di bawah adalah default yang disarankan; sesuaikan dengan mesinmu.
+
+# Mode: pribadi (satu user, hanya localhost) atau server (banyak user lewat browser,
+# akun dibuat admin dengan platform/p-lab-admin).
+mode: server
+
+# Alamat dan port web UI. 0.0.0.0 = bisa diakses dari jaringan.
+# Server ini belum memakai HTTPS: pasang di belakang reverse proxy (nginx/caddy)
+# atau batasi ke jaringan sekolah/kantor yang tepercaya.
+# Mode pribadi: baris ini sebaiknya dihapus (selalu 127.0.0.1:8000).
+listen: 0.0.0.0:8000
+
+# Tempat semua data server: database akun (p-lab.db), instances/<user>/<lab>/
+# (state tiap siswa) dan arsip sesi. Wajib path absolut di mode server.
+# Pemiliknya user sistem `plab`. Sertakan di backup rutin.
+data_dir: /var/lib/p-lab
+
+# Nama host / IP yang dipakai user untuk membuka P-lab di browser (tanpa
+# http:// dan tanpa port). Request dengan header Host lain ditolak (400): ini
+# menutup serangan DNS rebinding. localhost/127.0.0.1/[::1] selalu diizinkan.
+# Kosong (default) = Host apa pun diterima, dan server mencatat peringatan.
+# allowed_hosts: [192.168.1.10, plab.sekolah.local]
+
+# Reverse proxy (IP atau CIDR) yang header X-Forwarded-For / X-Forwarded-Proto-nya
+# dipercaya: untuk IP klien di batas login gagal dan flag Secure cookie. Isi hanya
+# kalau P-lab di belakang nginx/caddy; header dari alamat lain diabaikan.
+# trusted_proxies: [127.0.0.1]
+
+# Gaya penggunaan:
+#   mandiri  tiap user memainkan instance labnya sendiri; leaderboard
+#            menampilkan nama dan poin semua user
+#   kelas    hanya siswa yang diperingkat (siswa melihat teman tanpa nama);
+#            guru/admin melihat nama dan progres semua siswa
+style: mandiri
+
+# Batas sumber daya, supaya 30 siswa deploy bersamaan tidak membuat mesin hang.
+capacity:
+  # Total perkiraan RAM (MB) untuk semua lab yang berjalan bersamaan.
+  # Lab RouterOS: ±256 MB per router CHR (VM) ditambah overhead container;
+  # lab Linux jauh lebih kecil.
+  # Sisakan RAM untuk sistem: biasanya 70-80% dari RAM fisik.
+  mem_mb: 24000
+  # Berapa deploy (containerlab deploy) boleh berjalan bersamaan.
+  # Deploy RouterOS berat di CPU dan disk; mulai dari 2.
+  max_deploys: 2
+  # Lab tanpa aktivitas selama ini (menit) diarsipkan lalu dihancurkan
+  # untuk membebaskan RAM. User tinggal deploy lagi.
+  idle_minutes: 30

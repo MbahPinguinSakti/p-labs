@@ -14,6 +14,8 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 PLATFORM = Path(__file__).resolve().parent.parent
 LABS = PLATFORM.parent / "labs"
@@ -23,10 +25,17 @@ TMP = Path(tempfile.mkdtemp(prefix="plab-test-"))
 os.environ["LAB_LABS_DIR"] = str(TMP)
 sys.path.insert(0, str(PLATFORM))
 
+import config  # noqa: E402
 import server  # noqa: E402
+
+LOCAL = server.local_user()   # mode Pribadi: instance `local`
 
 
 def setUpModule():
+    server.configure(config.Config())   # mode Pribadi, apa pun isi /etc/p-lab di mesin ini
+    # LAB_LABS_DIR di atas hanya berlaku kalau modul ini yang pertama mengimpor server
+    # (unittest discover mengimpor test lain lebih dulu): tunjuk folder sementara langsung.
+    server.LABS_DIR = TMP
     lab = TMP / "net-001"
     shutil.copytree(LABS / "net-001", lab, ignore=shutil.ignore_patterns(".state", "sessions", "clab-*"))
     # Sesi "aktif": golden tanpa evaluation.json.
@@ -39,7 +48,7 @@ def tearDownModule():
 
 class TestLiveState(unittest.TestCase):
     def setUp(self):
-        self.state = server.live_state("net-001")
+        self.state = server.session_state("net-001", LOCAL)
         self.text = json.dumps(self.state)
 
     def test_active_session(self):
@@ -77,10 +86,10 @@ class TestHint(unittest.TestCase):
         events = TMP / "net-001" / ".state" / "events" / "host.jsonl"
         before = events.read_text()
         try:
-            opened = server.hint("net-001", server.HintRequest())
+            opened = server.hint("net-001", server.HintRequest(), LOCAL)
             self.assertEqual(opened["level"], 2)
             self.assertTrue(opened["new"])
-            again = server.hint("net-001", server.HintRequest(level=2))
+            again = server.hint("net-001", server.HintRequest(level=2), LOCAL)
             self.assertFalse(again["new"])  # dibuka ulang: tanpa penalti tambahan
             self.assertEqual(events.read_text().count('"type": "hint"'), before.count('"type": "hint"') + 1)
         finally:
@@ -89,13 +98,13 @@ class TestHint(unittest.TestCase):
 
 class TestCatalog(unittest.TestCase):
     def test_lab_card(self):
-        card = server.labs()[0]
+        card = server.labs(LOCAL)[0]
         self.assertEqual(card["id"], "net-001")
         self.assertEqual(card["active_session"], "20261103-023553")
         self.assertEqual(card["checkpoints_total"], 4)  # llm_judge tidak dihitung
 
     def test_lab_detail_has_design_labels(self):
-        detail = server.lab_detail("net-001")
+        detail = server.lab_detail("net-001", LOCAL)
         labels = {(l["a"], l["b"]): l["label"] for l in detail["topology"]["links"]}
         self.assertEqual(labels[("sw1", "sw2")], "trunk · VLAN 10, 20")
         self.assertNotIn("<!-- cli", detail["brief"]["markdown"])
@@ -103,17 +112,42 @@ class TestCatalog(unittest.TestCase):
         self.assertEqual(detail["brief"]["ticket_title"], "host-a tidak bisa menjangkau host-b")
 
     def test_golden_result_reveals_everything(self):
-        result = server.session_result("net-001", "20261019-234339")
+        result = server.session_result("net-001", "20261019-234339", LOCAL)
         self.assertEqual(result["kind"], "golden")
         self.assertIn("locate_fault", result["checkpoint_labels"])
         self.assertNotIn("llm_runs", result["result"])
         self.assertEqual(result["timeline"][0]["id"], "E1")
 
     def test_leaderboard_ranks_goldens(self):
-        board = server.leaderboard()
+        board = server.leaderboard(LOCAL)
         golden_points = [e["points"] for e in board if e.get("golden")]
         self.assertEqual(golden_points, sorted(golden_points, reverse=True))
         self.assertEqual(sum(1 for e in board if e["you"]), 1)
+
+
+class TestMgmtIpCache(unittest.TestCase):
+    """Cache IP Winbox: sesi lama node yang sama dibuang, total entri dibatasi."""
+
+    def setUp(self):
+        server._mgmt_ip.clear()
+        self.addCleanup(server._mgmt_ip.clear)
+
+    def lab(self, instance, session):
+        return SimpleNamespace(instance=instance, session=session, kinds={"r1": server.ros.ROS_KIND},
+                               container=lambda node: f"{instance}-{node}")
+
+    def test_old_session_dropped_and_bounded(self):
+        with mock.patch.object(server.ros, "container_ip", side_effect=lambda c: "172.20.0.2") as ip:
+            server.gui_access(self.lab("a", "s1"), ["r1"])
+            server.gui_access(self.lab("a", "s1"), ["r1"])
+            self.assertEqual(ip.call_count, 1)                 # sesi sama: dari cache
+            server.gui_access(self.lab("a", "s2"), ["r1"])
+            self.assertEqual(list(server._mgmt_ip), [("a", "s2", "r1")])
+            with mock.patch.object(server, "MGMT_IP_MAX", 3):
+                for i in range(5):
+                    server.gui_access(self.lab(f"u{i}", "s1"), ["r1"])
+                self.assertEqual(len(server._mgmt_ip), 3)
+                self.assertIn(("u4", "s1", "r1"), server._mgmt_ip)
 
 
 class TestUnarmedSession(unittest.TestCase):
@@ -128,11 +162,11 @@ class TestUnarmedSession(unittest.TestCase):
         self.aside.rename(self.truth)
 
     def test_not_shown_as_active(self):
-        self.assertIsNone(server.live_state("net-001")["session"])
+        self.assertIsNone(server.session_state("net-001", LOCAL)["session"])
 
     def test_evaluate_refused(self):
         with self.assertRaises(server.HTTPException) as ctx:
-            server.evaluate_session("net-001", server.EvaluateRequest(use_llm=False))
+            server.evaluate_session("net-001", server.EvaluateRequest(use_llm=False), LOCAL)
         self.assertEqual(ctx.exception.status_code, 409)
 
 
@@ -171,43 +205,10 @@ class TestDeploy(unittest.TestCase):
         server.deploy_support = lambda: {"available": False, "mode": None, "reason": "butuh setup"}
         try:
             with self.assertRaises(server.HTTPException) as ctx:
-                server.deploy("net-001")
+                server.deploy("net-001", LOCAL)
             self.assertEqual(ctx.exception.status_code, 409)
         finally:
             server.deploy_support = original
-
-
-@unittest.skipUnless(shutil.which("ttyd"), "ttyd tidak terinstall")
-class TestTtydPort(unittest.TestCase):
-    """Port ttyd yang sudah dipakai proses lain (mis. service `ttyd` bawaan
-    Ubuntu yang menjalankan `login`) tidak boleh dipakai ulang."""
-
-    def run_ttyd(self, *args):
-        import socket
-        import subprocess
-        with socket.socket() as sock:
-            sock.bind(("127.0.0.1", 0))
-            port = sock.getsockname()[1]
-        proc = subprocess.Popen(["ttyd", "-i", "lo", "-p", str(port), *args],
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        self.addCleanup(lambda: (proc.kill(), proc.wait()))
-        for _ in range(50):
-            if server.port_open(port):
-                break
-            time.sleep(0.05)
-        return port
-
-    def test_foreign_ttyd_is_not_reused(self):
-        port = self.run_ttyd("login")   # seperti service ttyd bawaan Debian/Ubuntu
-        self.assertTrue(server.port_open(port))
-        self.assertFalse(server.lab_ttyd_on(port, TMP / "net-001"))
-        self.assertNotEqual(server.free_port(port), port)
-
-    def test_lab_ttyd_for_same_lab_is_reused(self):
-        lab = TMP / "net-001"
-        port = self.run_ttyd("-W", "-a", str(server.HERE / "lab-shell"), str(lab))   # seperti platform/serve
-        self.assertTrue(server.lab_ttyd_on(port, lab))
-        self.assertFalse(server.lab_ttyd_on(port, TMP / "lab-lain"))
 
 
 if __name__ == "__main__":

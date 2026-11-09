@@ -2,6 +2,7 @@
 # Jalankan terminal web (ttyd) + checkpoint watcher untuk satu soal.
 # Usage: serve [problem_dir] [port]
 #   problem_dir default: direktori saat ini (harus berisi problem.yaml)
+# Instance dipilih env LAB_INSTANCE (default local), diteruskan ke watcher dan lab-shell.
 # Buka http://localhost:<port>/?arg=<node>
 set -euo pipefail
 
@@ -18,21 +19,24 @@ if [[ ! -f "$PROBLEM_DIR/problem.yaml" ]]; then
 fi
 
 command -v ttyd >/dev/null || { echo "ttyd belum terinstall (lihat docs/instalasi.md)" >&2; exit 1; }
-[[ -f "$PROBLEM_DIR/.state/session_id" ]] || { echo "Belum ada sesi. Jalankan ./reset.sh dulu." >&2; exit 1; }
+INSTANCE_ENV=$("$PY" "$HERE/instance.py" env "$PROBLEM_DIR") || exit 1
+eval "$INSTANCE_ENV"
+export LAB_INSTANCE
+STATE=$LAB_STATE_DIR
+[[ -f "$STATE/session_id" ]] || { echo "Belum ada sesi. Jalankan ./reset.sh dulu." >&2; exit 1; }
 if (exec 3<>"/dev/tcp/127.0.0.1/$PORT") 2>/dev/null; then
   echo "Port $PORT sudah dipakai (di Ubuntu/Debian biasanya service 'ttyd' bawaan: sudo systemctl disable --now ttyd)." >&2
   echo "Atau pakai port lain: serve $PROBLEM_DIR 7690" >&2
   exit 1
 fi
 
-"$PY" "$HERE/checkpoints.py" watch "$PROBLEM_DIR" > "$PROBLEM_DIR/.state/watch.log" 2>&1 &
+"$PY" "$HERE/checkpoints.py" watch "$PROBLEM_DIR" > "$STATE/watch.log" 2>&1 &
 WATCH_PID=$!
 trap 'kill $WATCH_PID 2>/dev/null' EXIT
 
-TOPO=$(ls "$PROBLEM_DIR"/*.clab.yaml | head -1)
-NODES=$("$PY" -c 'import sys,yaml; print(" ".join(yaml.safe_load(open(sys.argv[1]))["topology"]["nodes"]))' "$TOPO")
+NODES=$("$PY" -c 'import sys,yaml; print(" ".join(yaml.safe_load(open(sys.argv[1]))["topology"]["nodes"]))' "$LAB_TOPO")
 
-echo "Watcher berjalan (log: $PROBLEM_DIR/.state/watch.log)"
+echo "Watcher berjalan (log: $STATE/watch.log)"
 echo "Terminal:"
 for n in $NODES; do echo "  $n  http://localhost:${PORT}/?arg=${n}"; done
 

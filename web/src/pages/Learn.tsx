@@ -63,7 +63,7 @@ export function Learn() {
                     {m.lab ? (
                       lab ? (
                         <Link to={`/labs/${lab.id}`} className="accent">
-                          {track === "problem-solving" ? "Contoh" : "Lab"}: {m.lab}
+                          Lab: {m.lab}
                         </Link>
                       ) : (
                         <span>Lab: {m.lab} (segera hadir)</span>

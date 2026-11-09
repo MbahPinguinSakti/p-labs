@@ -1,6 +1,6 @@
 # Spesifikasi soal. Referensi lengkap tiap field: docs/membuat-lab.md
 id: __ID__
-category: network-engineer          # network-engineer | network-admin | cybersecurity
+category: network-engineer          # network-engineer | network-admin
 title: "__TITLE__"
 difficulty: beginner                # beginner | intermediate | advanced
 lab_topology: topology.clab.yaml

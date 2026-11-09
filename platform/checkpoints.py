@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Checkpoint matcher untuk lab.
 
-Membaca event JSONL di <problem_dir>/.state/events/, mencocokkan dengan
+Membaca event JSONL di .state/events/ instance, mencocokkan dengan
 checkpoint di problem.yaml, dan mencatat checkpoint yang tercapai ke
-.state/checkpoints.jsonl.
+.state/checkpoints.jsonl. Instance dipilih env LAB_INSTANCE (default local =
+<problem_dir>/.state), lihat instance.py.
 
   checkpoints.py watch  <problem_dir>   # jalan selama sesi, event-driven
   checkpoints.py status <problem_dir>   # ringkasan checkpoint sesi ini
@@ -33,7 +34,7 @@ import sys
 import time
 from pathlib import Path
 
-import yaml
+from instance import Instance
 
 SEGMENT_SPLIT = re.compile(r"\s*(?:;|&&|\|\||\||\n)\s*")
 STATE_CHECK_TIMEOUT = 5
@@ -52,15 +53,17 @@ def render(value, params):
 
 class Lab:
     def __init__(self, problem_dir, state_dir=None):
-        # state_dir: default .state/ (sesi live); bisa diarahkan ke golden/<sesi>/.
-        self.dir = Path(problem_dir).resolve()
-        self.state = Path(state_dir).resolve() if state_dir else self.dir / ".state"
+        # problem_dir: direktori soal (instance dari LAB_INSTANCE) atau Instance.
+        # state_dir: default .state/ instance (sesi live); bisa diarahkan ke golden/<sesi>/.
+        self.instance = Instance.coerce(problem_dir)
+        self.dir = self.instance.problem_dir
+        self.state = Path(state_dir).resolve() if state_dir else self.instance.state_dir
         self.events_dir = self.state / "events"
         self.hits_file = self.state / "checkpoints.jsonl"
 
-        problem = yaml.safe_load((self.dir / "problem.yaml").read_text())
-        topo = yaml.safe_load((self.dir / problem["lab_topology"]).read_text())
-        self.lab_name = topo["name"]
+        problem = self.instance.problem
+        topo = self.instance.topology
+        self.lab_name = self.instance.clab_name
         body = topo.get("topology") or {}
         default_kind = (body.get("defaults") or {}).get("kind", "linux")
         self.kinds = {n: (s or {}).get("kind", default_kind) for n, s in (body.get("nodes") or {}).items()}
@@ -79,13 +82,13 @@ class Lab:
         self.session = session_file.read_text().strip() if session_file.exists() else None
 
     def container(self, node):
-        return f"clab-{self.lab_name}-{node}"
+        return self.instance.container(node)
 
     def run_on(self, node, command):
         if self.kinds.get(node) == "mikrotik_ros":
             import ros  # command state_check untuk RouterOS ditulis dalam sintaks RouterOS
             try:
-                output, ok = ros.exec_once(self.dir, node, command, timeout=STATE_CHECK_TIMEOUT)
+                output, ok = ros.exec_once(self.instance, node, command, timeout=STATE_CHECK_TIMEOUT)
             except (ConnectionError, OSError, subprocess.TimeoutExpired):
                 return None
             return output if ok else None

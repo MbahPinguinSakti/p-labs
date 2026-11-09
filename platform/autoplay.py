@@ -29,6 +29,9 @@ Format skenario (YAML):
   --capture-only  Lewati permainan, langsung simpan sesi yang ada ke golden/
                   (mis. setelah `evaluate.py run .` dijalankan di sesi live).
 
+Instance yang dimainkan dipilih env LAB_INSTANCE (default local = labs/<id>/.state);
+golden tetap disimpan di golden/ milik soal.
+
 Butuh akses docker (jalankan di dalam `newgrp docker` kalau perlu).
 """
 
@@ -54,6 +57,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import sessions  # noqa: E402
+from instance import Instance  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 TYPE_DELAY = 0.04       # detik per karakter saat "mengetik"
@@ -132,11 +136,11 @@ def rearm(problem_dir):
         sys.exit(f"--rearm: {error}")
 
 
-def capture(problem_dir, scenario, scenario_file):
-    state = problem_dir / ".state"
+def capture(instance, scenario, scenario_file):
+    state = instance.state_dir
     session = (state / "session_id").read_text().strip()
-    (state / "verify.json").write_text(json.dumps(sessions.verify(problem_dir)) + "\n")
-    dest = sessions.archive(problem_dir, "golden")
+    (state / "verify.json").write_text(json.dumps(sessions.verify(instance)) + "\n")
+    dest = sessions.archive(instance, "golden")
     notes = (f"# Golden transcript: {session}\n\n"
              f"**Tipe:** {scenario.get('label', '')}\n"
              f"**Sumber:** sesi otomatis (`platform/autoplay.py`, skenario `{scenario_file.name}`), "
@@ -157,22 +161,25 @@ def main():
     parser.add_argument("--capture-only", action="store_true")
     args = parser.parse_args()
     problem_dir = args.problem_dir.resolve()
+    instance = Instance.from_env(problem_dir)
+    state = instance.state_dir
     scenario = yaml.safe_load(args.scenario.read_text())
 
     if args.capture_only:
-        print(f"golden: {capture(problem_dir, scenario, args.scenario)}")
+        print(f"golden: {capture(instance, scenario, args.scenario)}")
         return
     if args.rearm:
-        rearm(problem_dir)
-    session = (problem_dir / ".state" / "session_id").read_text().strip()
+        rearm(instance)
+    session = (state / "session_id").read_text().strip()
     total = sum(step.get("think", 0) for step in scenario["steps"]) * args.speed
     print(f"autoplay {args.scenario.name}: sesi {session}, {len(scenario['steps'])} command, "
           f"±{total / 60:.1f} menit jeda berpikir", flush=True)
 
     # Watcher checkpoint, sama seperti yang dijalankan platform/serve.
-    watch_log = (problem_dir / ".state" / "watch.log").open("a")
+    watch_log = (state / "watch.log").open("a")
     watcher = subprocess.Popen([sys.executable, str(HERE / "checkpoints.py"), "watch", str(problem_dir)],
-                               stdout=watch_log, stderr=subprocess.STDOUT, start_new_session=True)
+                               stdout=watch_log, stderr=subprocess.STDOUT, start_new_session=True,
+                               env=instance.env())
     shells = {}
     try:
         time.sleep(1)
@@ -198,9 +205,9 @@ def main():
         os.killpg(watcher.pid, signal.SIGTERM)
         watch_log.close()
 
-    print((problem_dir / ".state" / "watch.log").read_text(), end="")
+    print((state / "watch.log").read_text(), end="")
     if args.capture:
-        print(f"golden: {capture(problem_dir, scenario, args.scenario)}")
+        print(f"golden: {capture(instance, scenario, args.scenario)}")
 
 
 if __name__ == "__main__":

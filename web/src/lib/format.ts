@@ -32,9 +32,6 @@ export const CATEGORY: Record<string, string> = {
   "network-engineer": "Networking",
   "network-admin": "Networking",
   networking: "Networking",
-  "cyber-security": "Security",
-  security: "Security",
-  "problem-solving": "Problem Solving",
   analisis: "Analisis",
 };
 

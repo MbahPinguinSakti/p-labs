@@ -170,7 +170,7 @@ class RouterWatch(threading.Thread):
         while not self.stop.is_set():
             try:
                 if client is None:
-                    client = ros.connect(self.lab.dir, self.node)
+                    client = ros.connect(self.lab.instance, self.node)
                 self.poll(client)
             except Exception:  # noqa: BLE001 - router reboot/booting: sambung ulang nanti
                 if client is not None:

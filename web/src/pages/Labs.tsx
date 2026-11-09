@@ -10,7 +10,7 @@ import { category, clock } from "../lib/format";
 import { useNow } from "../lib/hooks";
 import s from "./Labs.module.css";
 
-const FILTERS = ["Semua", "Networking", "Security", "Problem Solving"] as const;
+const FILTERS = ["Semua", "Networking"] as const;
 
 export function Labs() {
   const { labs, labsError } = useAppData();

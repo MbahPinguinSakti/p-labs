@@ -3,13 +3,13 @@
 # sehingga server dengan alamat di paruh atas subnet tidak lagi "terhubung langsung".
 # Usage: inject.sh [router] [port] [prefix]
 set -euo pipefail
-cd "$(dirname "$0")"
+source "$(dirname "$0")/../../platform/labenv.sh"   # LAB_STATE_DIR, ctr, ros_exec
+cd "$LAB_DIR"
 
 ROUTER=${1:-r2}
 PORT=${2:-ether3}
 PREFIX=${3:-25}
-PY="$(cd ../.. && pwd)/.venv/bin/python"; [[ -x $PY ]] || PY=python3
-ros() { "$PY" ../../platform/ros.py exec . "$@" >/dev/null; }
+ros() { ros_exec "$@" >/dev/null; }
 
 ros "$ROUTER" "/ip address set [find interface=$PORT] address=10.20.0.1/$PREFIX"
 
@@ -17,7 +17,7 @@ ros "$ROUTER" "/ip address set [find interface=$PORT] address=10.20.0.1/$PREFIX"
 # RouterOS memperbarui rute connected sesaat setelah `set` selesai, jadi ping
 # pertama bisa masih lolos: ulangi beberapa kali sebelum menyatakan gagal.
 for _ in $(seq 1 10); do
-  if ! docker exec clab-net002-host-a ping -c 1 -W 1 10.20.0.130 >/dev/null 2>&1; then
+  if ! docker exec "$(ctr host-a)" ping -c 1 -W 1 10.20.0.130 >/dev/null 2>&1; then
     broken=1
     break
   fi
@@ -28,8 +28,8 @@ if [[ -z ${broken:-} ]]; then
   exit 1
 fi
 
-mkdir -p .state
-cat > .state/ground_truth.json <<JSON
+mkdir -p "$LAB_STATE_DIR"
+cat > "$LAB_STATE_DIR/ground_truth.json" <<JSON
 {"problem": "net-002", "router": "${ROUTER}", "port": "${PORT}", "prefix": ${PREFIX}, "injected_at": "$(date -Is)"}
 JSON
 echo "Fault injected."

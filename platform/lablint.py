@@ -22,7 +22,7 @@ from pathlib import Path
 import yaml
 
 HERE = Path(__file__).resolve().parent
-CATEGORIES = {"network-engineer", "network-admin", "cybersecurity"}
+CATEGORIES = {"network-engineer", "network-admin"}
 DIFFICULTIES = {"beginner", "intermediate", "advanced"}
 MATCHERS = {"command_match", "state_check", "llm_judge"}
 SEVERITIES = {"minor", "major"}
@@ -70,6 +70,32 @@ def check_script(report, lab_dir, name, role):
         report.error(f"{role} '{name}' tidak executable (chmod +x {name})")
 
 
+SOURCE_LABENV = re.compile(r"^\s*(?:source|\.)\s+.*platform/labenv\.sh", re.M)
+
+
+def script_contract_errors(lab_dir, problem):
+    """Pelanggaran kontrak instance di inject/verify (lihat platform/labenv.sh).
+
+    Dipakai lint dan reset-lab: script yang menulis nama container atau .state/
+    langsung akan menyentuh lab instance `local` saat dijalankan untuk user lain.
+    """
+    errors = []
+    for name in sorted({(problem.get("fault_injection") or {}).get("script", "inject.sh"),
+                        (problem.get("goal_state") or {}).get("verify_script", "verify.sh")}):
+        path = Path(lab_dir) / name
+        if not path.is_file():
+            continue
+        text = path.read_text()
+        code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
+        if not SOURCE_LABENV.search(code):
+            errors.append(f"{name} tidak men-source platform/labenv.sh (lihat docs/membuat-lab.md)")
+        if re.search(r"clab-", code):
+            errors.append(f"{name} menulis nama container clab-... langsung; pakai $(ctr <node>)")
+        if re.search(r"""(^|[\s"'/=])\.state(/|\b)""", code, re.M):
+            errors.append(f"{name} menulis .state/ langsung; pakai $LAB_STATE_DIR")
+    return errors
+
+
 def lint(lab_dir):
     lab_dir = Path(lab_dir).resolve()
     report = Report(lab_dir)
@@ -98,6 +124,15 @@ def lint(lab_dir):
     if not (HERE / "nos" / f"{nos}.yaml").exists():
         report.error(f"nos '{nos}' tidak punya aturan di platform/nos/{nos}.yaml")
 
+    # --- resources: perkiraan RAM untuk batas kapasitas mode Server (capacity.py)
+    resources = problem.get("resources")
+    if resources is not None:
+        mem = resources.get("mem_mb") if isinstance(resources, dict) else None
+        if not isinstance(resources, dict) or set(resources) - {"mem_mb"}:
+            report.error("resources hanya boleh berisi mem_mb")
+        elif isinstance(mem, bool) or not isinstance(mem, int) or mem <= 0:
+            report.error(f"resources.mem_mb harus bilangan bulat positif (MB), dapat {mem!r}")
+
     # --- {{parameter}}: semua yang dipakai harus didefinisikan
     params = problem.get("parameters") or {}
     used = placeholders({k: v for k, v in problem.items() if k != "parameters"})
@@ -109,6 +144,10 @@ def lint(lab_dir):
     check_script(report, lab_dir, (problem.get("goal_state") or {}).get("verify_script", "verify.sh"), "verify script")
     check_script(report, lab_dir, "reset.sh", "reset.sh")
 
+    # --- script soal: nama container dan state lewat labenv.sh (instance per user)
+    for message in script_contract_errors(lab_dir, problem):
+        report.error(message)
+
     # --- topologi
     nodes, links = [], []
     topo_file = lab_dir / str(problem.get("lab_topology", ""))
@@ -118,9 +157,28 @@ def lint(lab_dir):
         topo = yaml.safe_load(topo_file.read_text()) or {}
         if not topo_file.name.endswith(".clab.yaml"):
             report.error("file topologi harus berakhiran .clab.yaml (dicari lab-shell dan web UI)")
-        if not topo.get("name"):
+        name = topo.get("name")
+        if not name:
             report.error("topologi tidak punya 'name'")
+        elif not re.fullmatch(r"[a-z0-9]+", str(name)):
+            # Instance user diberi nama <name>-<user>; '-' di name membuat nama bisa bertabrakan.
+            report.error(f"name topologi '{name}' hanya boleh huruf kecil dan angka (tanpa '-')")
+        else:
+            for other in sorted(lab_dir.parent.glob("*/problem.yaml")):
+                if other.parent == lab_dir:
+                    continue
+                try:
+                    spec = yaml.safe_load(other.read_text()) or {}
+                    other_name = (yaml.safe_load((other.parent / spec["lab_topology"]).read_text()) or {}).get("name")
+                except (OSError, KeyError, yaml.YAMLError):
+                    continue
+                if other_name == name:
+                    report.error(f"name topologi '{name}' sudah dipakai {other.parent.name}")
         body = topo.get("topology") or {}
+        # Bentrok antar-instance: semua instance berbagi docker host dan jaringan management.
+        # Jaringan management per instance ditambahkan oleh render (instance.py), bukan soal.
+        if topo.get("mgmt"):
+            report.error("blok 'mgmt' (jaringan management khusus) tidak didukung: bentrok antar-instance")
         nodes = list((body.get("nodes") or {}).keys())
         links = [tuple(l.get("endpoints", [])) for l in body.get("links") or []]
         binds = " ".join((body.get("defaults") or {}).get("binds") or [])
@@ -129,16 +187,23 @@ def lint(lab_dir):
         if ".state/events:/var/log/lab" not in binds:
             report.error("defaults.binds tidak memasang .state/events:/var/log/lab (event tidak sampai ke host)")
         defaults, kinds = body.get("defaults") or {}, body.get("kinds") or {}
+        groups = body.get("groups") or {}
         for node, spec in (body.get("nodes") or {}).items():
             spec = spec or {}
             if not re.fullmatch(r"[a-z0-9-]+", node):
                 report.error(f"nama node '{node}' hanya boleh huruf kecil, angka, dan '-' (lab-shell menolak)")
-            kind = spec.get("kind") or defaults.get("kind") or "linux"
+            group = groups.get(spec.get("group")) or {}
+            kind = spec.get("kind") or group.get("kind") or defaults.get("kind") or "linux"
+            # Urutan pewarisan containerlab: node > group > kind > defaults.
+            layers = [spec, group, kinds.get(kind) or {}, defaults]
             # Node Linux tanpa jaringan management: hanya terhubung lewat link soal.
             # Node VM (mis. mikrotik_ros) memang butuh management untuk SSH dari host.
-            mode = spec.get("network-mode") or (kinds.get(kind) or {}).get("network-mode") or defaults.get("network-mode")
+            mode = next((layer["network-mode"] for layer in layers if layer.get("network-mode")), None)
             if kind == "linux" and mode != "none":
                 report.warn(f"node {node}: network-mode bukan 'none', bisa saling menjangkau lewat jaringan management docker")
+            for key in ("mgmt-ipv4", "mgmt-ipv6", "ports"):
+                if any(layer.get(key) for layer in layers):
+                    report.error(f"node {node}: '{key}' tidak didukung (bentrok antar-instance user)")
             config = spec.get("startup-config")
             if config and not (topo_file.parent / config).is_file():
                 report.error(f"node {node}: startup-config '{config}' tidak ada")

@@ -6,12 +6,11 @@
 #   correctness   0 = belum jalan
 # Exit code: 0 jika 100, 1 selain itu, 2 jika lab tidak bisa diakses.
 set -uo pipefail
-cd "$(dirname "$0")"
+source "$(dirname "$0")/../../platform/labenv.sh"   # LAB_STATE_DIR, ctr, ros_exec
+cd "$LAB_DIR"
 
-LAB=net002
-c() { echo "clab-${LAB}-$1"; }
-PY="$(cd ../.. && pwd)/.venv/bin/python"; [[ -x $PY ]] || PY=python3
-ros() { "$PY" ../../platform/ros.py exec . "$@" 2>/dev/null | tr -d '\r'; }
+c() { ctr "$1"; }
+ros() { ros_exec "$@" 2>/dev/null | tr -d '\r'; }
 fail() { printf '{"problem": "net-002", "error": "%s"}\n' "$1"; exit 2; }
 
 docker info >/dev/null 2>&1 || fail "Docker tidak bisa diakses"

@@ -8,6 +8,8 @@ web/dist/
 labs/*/.state/
 labs/*/clab-*/
 labs/*/sessions/
+# Instance lab per user (platform/instance.py): state, arsip, topologi hasil render
+/var/
 
 # Catatan pengembangan internal (tidak ikut didistribusikan)
 rencana.md

@@ -12,7 +12,7 @@ import { category, difficulty, num } from "../lib/format";
 import { useApi } from "../lib/hooks";
 import s from "./Home.module.css";
 
-const FILTERS = ["Semua", "Networking", "Security"] as const;
+const FILTERS = ["Semua", "Networking"] as const;
 
 export function Home() {
   const { me, labs } = useAppData();
@@ -96,8 +96,8 @@ export function Home() {
       )}
 
       <div className={s.stats}>
-        <Stat value={me?.user ?? "…"} label="Akun lokal">
-          <Avatar name={me?.user ?? "?"} size={44} />
+        <Stat value={me?.user?.display_name ?? "…"} label={me?.auth ? "Akun" : "Akun lokal"}>
+          <Avatar name={me?.user?.display_name ?? "?"} size={44} />
         </Stat>
         <Stat value={num(progress.data?.points ?? 0)} label="Points" tone="gold" />
         <Stat value={labsDone} label={`Lab selesai · dari ${labs?.length ?? 0} lab tersedia`} />

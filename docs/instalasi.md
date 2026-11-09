@@ -6,10 +6,37 @@ Singkatnya: `./install.sh`, lalu buka http://localhost:8000. Halaman ini
 menjelaskan apa saja yang dilakukan installer, pilihan yang tersedia, dan cara
 memasang secara manual kalau installer tidak cocok dengan sistemmu.
 
-**Isi halaman:** [Kebutuhan](#kebutuhan) · [Installer](#menjalankan-installer) ·
+**Isi halaman:** [Pilih mode](#pilih-mode-pribadi-atau-server) · [Kebutuhan](#kebutuhan) · [Installer](#menjalankan-installer) ·
 [Deploy tanpa sudo](#deploy-lab-tanpa-sudo) · [RouterOS](#lab-mikrotik-routeros) ·
 [Evaluator AI](#evaluator-ai) · [Service](#service-web-ui) · [Update](#update) ·
 [Uninstall](#uninstall) · [Manual](#instalasi-manual) · [Masalah umum](#masalah-umum)
+
+## Pilih mode: Pribadi atau Server
+
+P-lab punya dua mode. Pilih dulu sebelum menjalankan installer.
+
+| | **Pribadi** | **Server** |
+|---|---|---|
+| Untuk | satu orang di komputernya sendiri | sekolah, kantor, atau rumah dengan banyak pengguna (10-40 bersamaan) |
+| Perintah | `./install.sh` | `./install.sh --server` |
+| Service | systemd **user** | systemd **system**, berjalan sebagai user `plab` |
+| Alamat | hanya `127.0.0.1:8000` | `0.0.0.0:8000`, dibuka dari browser komputer lain di LAN |
+| Login | tidak ada | wajib; akun dibuat admin |
+| Lab | satu set lab di folder project | tiap pengguna mendapat lab sendiri |
+| Data | folder project | `data_dir` (default `/var/lib/p-lab`) |
+| Konfigurasi | `~/.config/p-lab/web.env` | `/etc/p-lab/server.yaml` |
+
+Pakai **Pribadi** kalau kamu belajar sendiri. Pakai **Server** kalau satu mesin
+akan dipakai banyak orang lewat browser, misalnya satu kelas atau satu tim.
+Sisa halaman ini membahas mode Pribadi. Mode Server dibahas di
+[Mode Server](server.md), termasuk cara beralih dari Pribadi.
+
+Mode Server dipasang bertahap (bukan satu klik): `./install.sh --server`, isi
+`/etc/p-lab/server.yaml`, `./install.sh --server --check`, lalu
+`./install.sh --server --migrate` yang membuat admin pertama dan menyalakan
+service. Akun lain dibuat dengan `sudo platform/p-lab-admin ...`. Folder repo
+harus bisa dilewati user `plab` (disarankan `/opt/p-lab`). Selama config mode
+Server ada di mesin, `./install.sh` biasa tidak memasang service Pribadi.
 
 ## Kebutuhan
 
@@ -18,7 +45,7 @@ memasang secara manual kalau installer tidak cocok dengan sistemmu.
 | Linux | Arch/CachyOS/Manjaro, Debian/Ubuntu, Fedora | distro lain bisa, tapi dependensi dipasang manual |
 | Docker Engine | 24+ | menjalankan node lab sebagai container |
 | [containerlab](https://containerlab.dev/install/) | 0.62+ | membuat topologi (switch, host, link) |
-| ttyd | 1.7+ | terminal node di browser |
+| ttyd | 1.7+ | opsional: hanya untuk `platform/serve` (mode terminal tanpa web UI) |
 | Python | 3.10+ dengan `venv` | server web, perekam, evaluator |
 | Node.js + npm | 20.19+ | build web UI (sekali, saat install/update) |
 | util-linux (`script`) | | rekaman input + output terminal |
@@ -210,7 +237,7 @@ Kalau distromu tidak dikenali installer:
 | "Lab belum sehat ... Jalankan ./reset.sh" saat Mulai sesi | Lab rusak, misalnya container restart setelah reboot sehingga bridge hilang. Pakai **Reset lab** atau `./reset.sh`. |
 | Terminal di web menampilkan `login:` dan tidak bisa diketik (Ubuntu/Debian) | Itu ttyd milik service systemd `ttyd` bawaan paket distro, bukan terminal lab. Sejak versi ini server hanya memakai ttyd yang menjalankan lab-shell, dan memilih port lain kalau 7681 dipakai proses lain. Update (`git pull && ./install.sh`), lalu matikan service bawaannya: `sudo systemctl disable --now ttyd`. |
 | `Permission denied` di `.venv` / `EACCES` di `web/node_modules`, lalu `Cannot find native binding` (rolldown) | Folder itu milik root karena installer atau npm pernah dijalankan dengan `sudo`. Jalankan `./install.sh` **tanpa sudo**. Installer mendeteksinya dan menawarkan `sudo chown -R $USER: .venv web/node_modules web/dist ~/.npm`. Error rolldown hanya akibat `npm ci` yang gagal di tengah jalan, jadi akan hilang setelah install ulang berhasil. |
-| Terminal di web kosong | `ttyd` belum terpasang, atau port 7681 dipakai proses lain. Cek dengan `./install.sh --check`. |
+| Terminal di web kosong atau "Terputus" | Server tidak jalan, atau node lab belum berjalan. Terminal web sekarang lewat server (port 8000), tidak butuh ttyd. Cek `systemctl --user status p-lab` (mode Server: `systemctl status p-lab`) dan deploy ulang lab. |
 | `web/dist belum ada` | Build web UI gagal. Jalankan `cd web && npm ci && npm run build` dan perhatikan error-nya. Penyebab tersering: versi Node terlalu lama. |
 | Port 8000 sudah dipakai | Jalankan server di port lain: `platform/web --port 8080` (atau ubah `ExecStart` di `~/.config/systemd/user/p-lab.service`). |
 | Web: "Image vrnetlab/mikrotik_routeros:... belum ada" | Lab RouterOS butuh image yang dibangun lokal: `platform/build-routeros-image.sh` ([detail](#lab-mikrotik-routeros)). |

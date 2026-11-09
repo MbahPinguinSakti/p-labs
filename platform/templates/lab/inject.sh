@@ -4,18 +4,20 @@
 #
 # Kontrak (docs/membuat-lab.md):
 # - dipanggil reset-lab setelah verify.sh menyatakan lab sehat;
-# - menulis .state/ground_truth.json berisi nilai fault yang SEBENARNYA dipakai;
+# - menulis $LAB_STATE_DIR/ground_truth.json berisi nilai fault yang SEBENARNYA dipakai;
+# - menunjuk container lewat `ctr <node>` (labenv.sh), bukan clab-<nama>-<node>:
+#   tiap instance (user) punya nama lab sendiri;
 # - output-nya tidak ditampilkan ke pemain, tapi tetap jangan mencetak lokasi fault.
 set -euo pipefail
+source "$(dirname "$0")/../../platform/labenv.sh"   # LAB_STATE_DIR, ctr <node>
 
-LAB=__CLAB_NAME__
 SW=${1:-sw1}
 PORT=${2:-eth2}
 
-docker exec "clab-${LAB}-${SW}" ip link set "$PORT" nomaster
+docker exec "$(ctr "$SW")" ip link set "$PORT" nomaster
 
-mkdir -p "$(dirname "$0")/.state"
-cat > "$(dirname "$0")/.state/ground_truth.json" <<JSON
+mkdir -p "$LAB_STATE_DIR"
+cat > "$LAB_STATE_DIR/ground_truth.json" <<JSON
 {"problem": "__ID__", "switch": "${SW}", "port": "${PORT}", "injected_at": "$(date -Is)"}
 JSON
 

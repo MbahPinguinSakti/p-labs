@@ -10,6 +10,10 @@ ui:
 nos: routeros                     # aturan RouterOS + host Linux (include linux-bridge)
 deploy:
   ready_timeout: 300              # RouterOS (VM) butuh waktu boot sebelum verify bisa sehat
+# Perkiraan RAM satu instance (platform/capacity.py): 2 router CHR x ~400 MB (VM 256 MB
+# + qemu + launch.py vrnetlab) + 2 host netshoot x ~30 MB, dibulatkan ke atas.
+resources:
+  mem_mb: 900
 
 parameters:
   router: r2

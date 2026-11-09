@@ -8,6 +8,9 @@
 #
 # Aturan yang wajib dipertahankan untuk setiap topologi P-lab:
 # - `name` unik antar-lab (container jadi clab-<name>-<node>).
+#   Instance user lain otomatis jadi <name>-<user> (platform/instance.py).
+# - path di binds/startup-config relatif terhadap direktori soal; .state/ =
+#   state instance. Jangan pakai path absolut ke labs/<id>/.
 # - kedua bind di `defaults`: hook perekaman command dan direktori event.
 # - network-mode: none, supaya node hanya terhubung lewat link soal.
 name: __CLAB_NAME__

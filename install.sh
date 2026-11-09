@@ -8,6 +8,14 @@
 #   ./install.sh --no-service jangan pasang service systemd (jalankan manual: platform/web)
 #   ./install.sh --sudoless   langsung aktifkan deploy lab dari web (setup-sudoless.sh)
 #
+# Mode Server (satu server, banyak user lewat browser; akun dibuat admin). Bertahap,
+# sengaja tidak satu klik:
+#   ./install.sh --server         1. pasang: user `plab`, data_dir, unit systemd; BERHENTI
+#                                    minta config /etc/p-lab/server.yaml diisi admin
+#   ./install.sh --server --check 2. cek kesiapan (config, RAM, KVM, port, container, admin)
+#   ./install.sh --server --migrate 3. peralihan dari Pribadi: konfirmasi ketik `server`
+#   ./install.sh --revert-pribadi    kembali ke mode Pribadi (data server tidak dihapus)
+#
 # Aman dijalankan berulang, misalnya setelah `git pull` untuk update.
 # Panduan lengkap: docs/instalasi.md
 set -euo pipefail
@@ -15,7 +23,7 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "$0")" && pwd)
 cd "$ROOT"
 
-CHECK=0 YES=0 DEPS=1 SERVICE=1 SUDOLESS=ask
+CHECK=0 YES=0 DEPS=1 SERVICE=1 SUDOLESS=ask SERVER=0 MIGRATE=0 REVERT=0 UNDERSTAND=0
 for arg in "$@"; do
   case $arg in
     --check) CHECK=1 ;;
@@ -24,10 +32,15 @@ for arg in "$@"; do
     --no-service) SERVICE=0 ;;
     --sudoless) SUDOLESS=yes ;;
     --no-sudoless) SUDOLESS=no ;;
-    -h|--help) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --server) SERVER=1 ;;
+    --migrate) MIGRATE=1 ;;
+    --revert-pribadi) REVERT=1 ;;
+    --yes-i-understand) UNDERSTAND=1 ;;   # lewati ketik-ulang `server` (skrip); --yes TIDAK mewakili ini
+    -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "Opsi tidak dikenal: $arg (lihat --help)" >&2; exit 1 ;;
   esac
 done
+if (( MIGRATE )) && ! (( SERVER )); then echo "--migrate dipakai bersama --server: ./install.sh --server --migrate" >&2; exit 1; fi
 
 # --- tampilan ----------------------------------------------------------------------
 if [[ -t 1 ]]; then
@@ -79,9 +92,128 @@ version_ge() {  # version_ge 3.10.2 3.10 -> 0
   [[ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -1)" == "$2" ]]
 }
 
+# --- mode Server -------------------------------------------------------------------------
+# Asumsi (mode Server berjalan sebagai user sistem `plab`, bukan user yang login):
+#  - repo ini dan .venv dibaca/dieksekusi `plab`: semua folder induk repo harus bisa
+#    dilewati (o+x). Repo di /home/<user> dengan mode 700 TIDAK akan jalan; pindahkan ke
+#    /opt/p-lab atau `chmod o+x ~`. Repo tidak ditulis plab; semua state ada di data_dir.
+#  - `plab` anggota grup docker (jalankan container lab), clab_admins (containerlab
+#    setuid, lewat setup-sudoless.sh) dan kvm (VM RouterOS). Ketiganya setara akses
+#    root di mesin ini, jadi server ini sebaiknya mesin khusus.
+#  - Build (venv, npm, web/dist) tetap dilakukan user yang menjalankan install.sh.
+#  - Langkah root hanya lewat sudo di bawah ini: useradd/usermod, /etc/p-lab, data_dir,
+#    unit systemd, dan `migrate-server migrate` (membuat data_dir milik plab).
+SERVER_CONF=${LAB_CONFIG:-/etc/p-lab/server.yaml}
+PY=$ROOT/.venv/bin/python
+mig() { "$PY" platform/migrate-server "$@"; }
+user_svc_active() { systemctl --user is-active -q p-lab 2>/dev/null; }
+
+path_traversable_by_others() {  # semua folder induk $1 punya bit o+x
+  local d=$1
+  while [[ $d != / ]]; do
+    [[ $(stat -c %a "$d") =~ [1357]$ ]] || { echo "$d"; return 1; }
+    d=$(dirname "$d")
+  done
+}
+
+server_check() {
+  step "Mode Server: cek kesiapan"
+  local rc=0 blocked
+  if getent passwd plab >/dev/null; then
+    ok "user sistem plab"
+    for g in docker kvm clab_admins; do
+      getent group "$g" >/dev/null || continue
+      id -nG plab | tr ' ' '\n' | grep -qx "$g" && ok "plab di grup $g" || { bad "plab belum di grup $g (./install.sh --server)"; rc=1; }
+    done
+  else bad "user plab belum ada (./install.sh --server)"; rc=1; fi
+  if blocked=$(path_traversable_by_others "$ROOT"); then ok "repo bisa dilewati user plab"
+  else bad "folder $blocked tidak bisa dilewati user lain: plab tidak bisa menjalankan P-lab (chmod o+x $blocked, atau pindahkan repo ke /opt)"; rc=1; fi
+  [[ -f /etc/systemd/system/p-lab.service ]] && ok "unit systemd p-lab terpasang" || { bad "unit systemd belum terpasang (./install.sh --server)"; rc=1; }
+  if [[ -f $SERVER_CONF ]]; then ok "config $SERVER_CONF"
+  else bad "config belum ada: $SERVER_CONF (./install.sh --server membuatnya dari template)"; rc=1; fi
+  if [[ -x $PY && -f $SERVER_CONF ]]; then
+    echo; LAB_CONFIG=$SERVER_CONF mig check $( user_svc_active && echo --own-service-active ) || rc=1
+  fi
+  return $rc
+}
+
+server_install() {
+  step "Mode Server: pasang"
+  have containerlab || die "containerlab belum terpasang; jalankan dulu ./install.sh (tanpa --server) atau pasang manual"
+  if getent passwd plab >/dev/null; then ok "user plab sudah ada"
+  elif ask "Buat user sistem 'plab' (menjalankan P-lab server)? (butuh sudo)"; then
+    sudo useradd -r -m -d /var/lib/p-lab -s "$(command -v nologin || echo /usr/sbin/nologin)" -U plab && ok "user plab dibuat"
+  else die "Tanpa user plab, mode Server tidak bisa dipasang."; fi
+  for g in docker kvm; do
+    getent group "$g" >/dev/null && sudo usermod -aG "$g" plab && ok "plab masuk grup $g"
+  done
+  sudo "$ROOT/platform/setup-sudoless.sh" plab | sed 's/^/  /'   # grup clab_admins + containerlab setuid
+  if blocked=$(path_traversable_by_others "$ROOT"); then ok "repo bisa dilewati user plab"
+  else warn "folder $blocked tidak bisa dilewati user lain: plab tidak bisa menjalankan P-lab. Perbaiki: chmod o+x $blocked (atau pindahkan repo ke /opt/p-lab)"; fi
+  sudo install -d -m 755 "$(dirname "$SERVER_CONF")"
+  if [[ ! -f $SERVER_CONF ]]; then
+    sudo install -m 644 platform/templates/server.yaml "$SERVER_CONF"
+    ok "config dibuat dari template: $SERVER_CONF"
+  else ok "config sudah ada: $SERVER_CONF (tidak ditimpa)"; fi
+  local data
+  data=$(LAB_CONFIG=$SERVER_CONF PYTHONDONTWRITEBYTECODE=1 "$PY" -c \
+    'import sys; sys.path.insert(0, "platform"); import config; print(config.load().data_dir)') \
+    || die "config tidak valid; perbaiki $SERVER_CONF lalu ulangi ./install.sh --server"
+  sudo install -d -o plab -g plab -m 750 "$data" && ok "data_dir $data (milik plab)"
+  sudo env LAB_CONFIG="$SERVER_CONF" "$ROOT/platform/install-service.sh" --system | sed 's/^/  /'
+  # update kode (git pull + install.sh --server): service yang sudah jalan dimuat ulang
+  systemctl is-active -q p-lab 2>/dev/null && sudo systemctl restart p-lab && ok "service p-lab dimuat ulang"
+  step "Selesai (belum dinyalakan, belum di-enable)"
+  echo "  Langkah berikutnya, dilakukan admin:"
+  echo "   1. Isi $SERVER_CONF (alamat, data_dir, style, capacity, allowed_hosts; ada penjelasan di dalamnya)"
+  echo "   2. ./install.sh --server --check     cek kesiapan"
+  echo "   3. ./install.sh --server --migrate   membuat admin pertama dan menyalakan service"
+  echo "                                        (instalasi baru maupun peralihan; ketik ulang 'server')"
+  echo "  Akun lain: sudo platform/p-lab-admin create-user ... (lihat docs/server.md)"
+  echo "  Key LLM (opsional): /etc/p-lab/web.env (lihat docs/server.md)"
+  echo "  Batal kapan saja: ./install.sh --revert-pribadi"
+}
+
+server_migrate() {
+  step "Mode Server: peralihan Pribadi -> Server"
+  [[ -x $PY ]] || die "venv belum ada: jalankan ./install.sh dulu"
+  [[ -f $SERVER_CONF ]] || die "config belum ada: $SERVER_CONF (./install.sh --server)"
+  getent passwd plab >/dev/null || die "user plab belum ada (./install.sh --server)"
+  local flags=()
+  user_svc_active && flags+=(--own-service-active)
+  (( UNDERSTAND )) && flags+=(--yes-i-understand)
+  # root hanya untuk data_dir milik plab; sudo menjaga terminal sehingga konfirmasi bisa diketik.
+  # Pre-flight dijalankan ulang di dalamnya; gagal = berhenti sebelum ada yang diubah.
+  sudo env PYTHONDONTWRITEBYTECODE=1 LAB_CONFIG="$SERVER_CONF" "$PY" platform/migrate-server migrate \
+    --owner plab "${flags[@]}" || die "peralihan dibatalkan; tidak ada service yang diubah"
+  step "Mengganti service"
+  sudo env LAB_CONFIG="$SERVER_CONF" "$ROOT/platform/install-service.sh" --system | sed 's/^/  /'   # alamat dari config final
+  if user_svc_active; then
+    systemctl --user disable --now p-lab && ok "service user p-lab dihentikan (port dilepas)"
+  fi
+  sudo systemctl enable --now p-lab
+  sleep 2
+  if systemctl is-active -q p-lab; then ok "service system p-lab berjalan"
+  else die "service system p-lab gagal start: journalctl -u p-lab -e. Kembali: ./install.sh --revert-pribadi"; fi
+  echo "  Akun siswa: sudo platform/p-lab-admin create-user / import-csv (DB di data_dir)."
+}
+
+revert_pribadi() {
+  step "Kembali ke mode Pribadi"
+  ask "Matikan mode Server dan hidupkan lagi service pribadi? (data di data_dir tidak dihapus)" || die "dibatalkan"
+  sudo env LAB_CONFIG="$SERVER_CONF" "$ROOT/platform/install-service.sh" --system --uninstall | sed 's/^/  /'
+  [[ -x $PY ]] && sudo env PYTHONDONTWRITEBYTECODE=1 "$PY" platform/migrate-server revert --config "$SERVER_CONF" | sed 's/^/  /'
+  platform/install-service.sh | sed 's/^/  /'
+  ok "mode Pribadi aktif: http://localhost:8000"
+}
+
+if (( REVERT )); then revert_pribadi; exit 0; fi
+if (( MIGRATE )); then server_migrate; exit 0; fi
+if (( SERVER && CHECK )); then have() { command -v "$1" >/dev/null 2>&1; }; server_check; exit $?; fi
+
 # --- 1. cek dependensi sistem ----------------------------------------------------------
 step "1/6 Dependensi sistem (${PRETTY_NAME:-$DISTRO})"
-MISSING=()   # nama logis: docker containerlab ttyd python node script
+MISSING=()   # nama logis: docker containerlab python node script
 have() { command -v "$1" >/dev/null 2>&1; }
 
 if have docker; then ok "docker $(docker --version 2>/dev/null | sed 's/Docker version \([^,]*\).*/\1/')"
@@ -90,7 +222,8 @@ else bad "docker belum terinstall"; MISSING+=(docker); fi
 if have containerlab; then ok "containerlab $(containerlab version 2>/dev/null | sed -n 's/^ *version: *//p' | head -1)"
 else bad "containerlab belum terinstall"; MISSING+=(containerlab); fi
 
-if have ttyd; then ok "ttyd"; else bad "ttyd belum terinstall (terminal di browser)"; MISSING+=(ttyd); fi
+# Terminal web lewat server (platform/termbridge.py); ttyd hanya untuk platform/serve (mode terminal tanpa web).
+if have ttyd; then ok "ttyd (opsional, untuk platform/serve)"; else warn "ttyd tidak ada: opsional, hanya untuk platform/serve (mode terminal tanpa web UI)"; fi
 
 PYV=$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo 0)
 if version_ge "$PYV" 3.10 && python3 -c 'import venv, ensurepip' 2>/dev/null; then ok "python $PYV (+ venv)"
@@ -161,15 +294,15 @@ if (( ${#MISSING[@]} )); then
 fi
 
 # Paket ttyd di Debian/Ubuntu memasang service systemd `ttyd` (login read-only di
-# port 7681). P-lab menjalankan ttyd sendiri dan tidak butuh service ini; server
-# sudah menghindari port yang dipakai proses lain, tapi service-nya tetap tidak perlu.
+# port 7681). Web UI tidak memakai ttyd sama sekali (terminal lewat server), dan
+# platform/serve memakai port 7681 sendiri, jadi service bawaan ini tidak perlu.
 if systemctl is-active -q ttyd 2>/dev/null; then
   if (( CHECK )); then
     warn "service systemd 'ttyd' bawaan distro aktif (login di port 7681); tidak dipakai P-lab: sudo systemctl disable --now ttyd"
   elif ask "Matikan service 'ttyd' bawaan distro (login di port 7681, tidak dipakai P-lab)? (butuh sudo)"; then
     sudo systemctl disable --now ttyd && ok "service ttyd bawaan dimatikan"
   else
-    warn "service ttyd bawaan tetap aktif; P-lab memakai port lain (7682+)."
+    warn "service ttyd bawaan tetap aktif; hanya bentrok dengan platform/serve (port 7681)."
   fi
 fi
 
@@ -277,9 +410,17 @@ else
 fi
 .venv/bin/python platform/lablint.py labs/*/ | sed 's/^/  /' || warn "Ada lab yang tidak lolos lab-lint."
 
+if (( SERVER )); then server_install; exit 0; fi
+
 # --- 5. Service ------------------------------------------------------------------------
 step "5/6 Service web UI"
-if (( SERVICE )) && systemctl --user show-environment >/dev/null 2>&1; then
+# Config mode Server di mesin ini: service user ikut membacanya (default /etc/p-lab/server.yaml)
+# dan akan start sebagai Server. Jangan dipasang; arahkan admin ke jalur yang benar.
+SERVER_CFG_MODE=$(PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -c \
+  'import sys; sys.path.insert(0, "platform"); import config; print(config.load().mode)' 2>/dev/null || echo rusak)
+if (( SERVICE )) && [[ $SERVER_CFG_MODE != pribadi ]]; then
+  warn "config ${LAB_CONFIG:-/etc/p-lab/server.yaml} bermode server (atau rusak): service Pribadi tidak dipasang. Lanjutkan mode Server dengan ./install.sh --server, atau kembali ke Pribadi dengan ./install.sh --revert-pribadi"
+elif (( SERVICE )) && systemctl --user show-environment >/dev/null 2>&1; then
   platform/install-service.sh | sed 's/^/  /'
 elif (( SERVICE )); then
   warn "systemd user tidak tersedia: jalankan web UI manual dengan platform/web"

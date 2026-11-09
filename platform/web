@@ -20,7 +20,18 @@ PY="$ROOT/.venv/bin/python"
 [[ -x $PY ]] || PY=python3
 
 WEB="$ROOT/web"
-if [[ ! -f "$WEB/dist/index.html" || -n "$(find "$WEB/src" "$WEB/index.html" -newer "$WEB/dist/index.html" -print -quit)" ]]; then
+# Mode Server (LAB_CONFIG bermode server): jalan sebagai `plab`, repo read-only, jadi
+# tidak pernah build di sini; build dilakukan ./install.sh --server oleh admin.
+SERVER_MODE=0
+if [[ -n ${LAB_CONFIG:-} ]] && grep -Eq '^mode:[[:space:]]*["'"'"']?server' "$LAB_CONFIG" 2>/dev/null; then SERVER_MODE=1; fi
+if (( SERVER_MODE )); then
+  if [[ ! -f "$WEB/dist/index.html" ]]; then
+    echo "web/dist belum ada: jalankan ./install.sh --server untuk build." >&2; exit 1
+  fi
+  if [[ -n "$(find "$WEB/src" "$WEB/index.html" -newer "$WEB/dist/index.html" -print -quit)" ]]; then
+    echo "web/src lebih baru dari web/dist: jalankan ./install.sh --server untuk build ulang (memakai dist yang lama)."
+  fi
+elif [[ ! -f "$WEB/dist/index.html" || -n "$(find "$WEB/src" "$WEB/index.html" -newer "$WEB/dist/index.html" -print -quit)" ]]; then
   echo "Build frontend (web/)…"
   (cd "$WEB" && { [[ -d node_modules ]] || npm install; } && npm run build >/dev/null)
 fi

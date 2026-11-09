@@ -189,19 +189,16 @@ button.hint:disabled {
 .frame {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  border: 0;
-  padding: var(--space-sm);
-  background: #0b0e0c;
-  /* Tanpa ini iframe lintas-origin dicat putih (color-scheme induk dark ≠ dokumen ttyd). */
-  color-scheme: normal;
 }
-.termEmpty {
-  display: grid;
-  place-items: center;
-  height: 100%;
-  padding: var(--space-xl);
+.frame[hidden] {
+  display: none;
+}
+.termNotice {
+  position: absolute;
+  top: var(--space-sm);
+  left: var(--space-sm);
+  right: var(--space-sm);
+  z-index: 1;
 }
 .termFoot {
   display: flex;

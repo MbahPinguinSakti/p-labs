@@ -1,0 +1,385 @@
+#!/usr/bin/env python3
+"""Peralihan P-lab mode Pribadi <-> Server (pre-flight, migrasi data, rollback).
+
+Usage: migrate-server <check|migrate|revert> [opsi]
+
+  check     cek kesiapan mesin untuk mode server; tidak mengubah apa pun
+  migrate   check, konfirmasi (ketik ulang `server`), lalu siapkan data_dir,
+            admin pertama, dan salin arsip sesi pribadi; tulis MIGRASI.txt
+  revert    kembali ke Pribadi: config server dipindah (bukan dihapus), data di
+            data_dir TIDAK dihapus
+
+  --config FILE       default: env LAB_CONFIG atau /etc/p-lab/server.yaml
+  --admin NAMA        username admin pertama kalau DB belum punya admin (default: admin)
+  --owner USER        (migrate, sebagai root) pemilik data_dir, default: plab
+  --own-service-active  (dari install.sh) service user p-lab sedang jalan
+  --yes-i-understand  lewati pertanyaan konfirmasi (untuk skrip)
+
+Pembagian hak akses (dijalankan lewat install.sh, jangan sendiri-sendiri):
+  check    user biasa; hanya membaca.
+  migrate  root (sudo): membuat /var/lib/p-lab, lalu chown ke user `plab`.
+           Langkah systemd (hentikan service user, nyalakan unit system) TIDAK di
+           sini tapi di install.sh, supaya script ini murni data dan bisa diuji.
+  revert   root (sudo), hanya untuk memindahkan /etc/p-lab/server.yaml.
+Peralihan sengaja tidak satu klik: isi config -> check -> migrate -> konfirmasi.
+Sesi pribadi (labs/<id>/sessions/) SALIN, bukan pindah: aslinya utuh untuk rollback.
+"""
+
+if __name__ == "__main__":
+    import _venv  # noqa: E402  (Python venv, lihat _venv.py)
+    _venv.ensure()
+
+import argparse
+import datetime
+import os
+import shutil
+import socket
+import sqlite3
+import subprocess
+import sys
+from contextlib import closing
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import yaml  # noqa: E402
+
+import accounts  # noqa: E402
+import config as cfgmod  # noqa: E402
+from accounts import AccountError, AccountStore  # noqa: E402
+
+ROOT = cfgmod.ROOT
+OK, WARN, FAIL = "ok", "warn", "fail"
+CONFIRM_WORD = "server"
+NOTE = "MIGRASI.txt"
+
+
+# --- pemeriksaan (fungsi kecil, mudah diuji; kembalinya (level, teks)) -------------------
+
+def mem_total_mb(meminfo="/proc/meminfo"):
+    try:
+        for line in Path(meminfo).read_text().splitlines():
+            if line.startswith("MemTotal:"):
+                return int(line.split()[1]) // 1024
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def check_memory(cfg, total_mb):
+    want = cfg.capacity.mem_mb
+    if total_mb is None:
+        return WARN, "RAM mesin tidak bisa dibaca (/proc/meminfo)"
+    if want > total_mb:
+        return FAIL, f"capacity.mem_mb ({want}) melebihi RAM mesin ({total_mb} MB): kecilkan"
+    if want > total_mb * 0.9:
+        return WARN, f"capacity.mem_mb ({want}) > 90% RAM mesin ({total_mb} MB): sistem bisa kehabisan memori"
+    return OK, f"RAM {total_mb} MB, jatah lab {want} MB"
+
+
+def routeros_labs(repo=ROOT):
+    names = []
+    for prob in sorted(Path(repo).glob("labs/*/problem.yaml")):
+        try:
+            data = yaml.safe_load(prob.read_text()) or {}
+        except (OSError, yaml.YAMLError):
+            continue
+        if data.get("nos") == "routeros":
+            names.append(prob.parent.name)
+    return names
+
+
+def check_kvm(ros_labs, kvm="/dev/kvm"):
+    if os.path.exists(kvm):
+        return OK, "KVM tersedia (/dev/kvm)"
+    if ros_labs:
+        return FAIL, f"tidak ada /dev/kvm, padahal lab RouterOS butuh: {', '.join(ros_labs)}"
+    return WARN, "tidak ada /dev/kvm (tidak ada lab RouterOS saat ini, jadi tidak wajib)"
+
+
+def check_containerlab(path=None):
+    clab = path or shutil.which("containerlab")
+    if not clab:
+        return FAIL, "containerlab belum terpasang"
+    p = Path(clab)
+    st = p.stat()
+    if st.st_mode & 0o4000 and st.st_uid == 0:
+        return OK, "containerlab sudo-less (setuid, grup clab_admins)"
+    return FAIL, "containerlab belum sudo-less: sudo platform/setup-sudoless.sh plab"
+
+
+def check_port(host, port, own_service_active=False):
+    with closing(socket.socket(socket.AF_INET6 if ":" in host else socket.AF_INET)) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            s.bind((host, port))
+        except OSError as exc:
+            if own_service_active:
+                return WARN, f"port {port} dipakai service p-lab yang sekarang; install.sh menghentikannya saat peralihan"
+            return FAIL, f"port {host}:{port} tidak bisa dipakai ({exc.strerror}): ganti listen atau hentikan prosesnya"
+    return OK, f"port {host}:{port} bebas"
+
+
+def lab_clab_names(repo=ROOT):
+    """Nama lab containerlab dari labs/*/*.clab.yaml (dasar awalan container clab-<nama>-)."""
+    names = set()
+    for topo in Path(repo).glob("labs/*/*.clab.yaml"):
+        try:
+            name = (yaml.safe_load(topo.read_text()) or {}).get("name")
+        except (OSError, yaml.YAMLError):
+            continue
+        if name:
+            names.add(str(name))
+    return names
+
+
+def running_lab_containers(container_names, clab_names):
+    """Container milik lab P-lab: clab-<nama>- atau clab-<nama>-<user>-. Container
+    clab-* proyek lain dibiarkan: bukan urusan peralihan ini."""
+    return sorted(c for c in container_names
+                  if any(c.startswith(f"clab-{n}-") for n in clab_names))
+
+
+def docker_container_names():
+    try:
+        out = subprocess.run(["docker", "ps", "--format", "{{.Names}}"], capture_output=True,
+                             text=True, timeout=15)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return out.stdout.split() if out.returncode == 0 else None
+
+
+def check_containers(names, clab_names):
+    if names is None:
+        return WARN, "docker tidak bisa diakses: container lab yang sedang jalan tidak terdeteksi"
+    busy = running_lab_containers(names, clab_names)
+    if busy:
+        return FAIL, (f"{len(busy)} container lab masih jalan ({', '.join(busy[:3])}{'...' if len(busy) > 3 else ''}): "
+                      "hancurkan dulu dengan ./reset.sh atau containerlab destroy")
+    return OK, "tidak ada container lab yang berjalan"
+
+
+def admin_usernames_ro(db_path):
+    """Admin aktif di DB tanpa membuat file/DB (AccountStore membuatnya).
+    None = DB ada tapi tidak bisa dibaca user ini (mis. 0600 milik plab)."""
+    if not Path(db_path).exists():
+        return []
+    if not os.access(db_path, os.R_OK):
+        return None
+    try:
+        with closing(sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)) as db:
+            rows = db.execute("SELECT username FROM users WHERE role='admin' AND active=1 "
+                              "ORDER BY id").fetchall()
+        return [r[0] for r in rows]
+    except sqlite3.Error:
+        return []
+
+
+def check_admin(cfg, admin_name):
+    admins = admin_usernames_ro(cfg.db_path)
+    if admins is None:
+        return WARN, "tidak bisa membaca DB akun (jalankan dengan sudo untuk cek admin)"
+    if admins:
+        return OK, f"admin sudah ada di DB ({', '.join(admins)})"
+    return OK, f"belum ada admin: migrate membuat '{admin_name}' dengan password acak"
+
+
+def user_service_active():
+    try:
+        return subprocess.run(["systemctl", "--user", "is-active", "-q", "p-lab"],
+                              timeout=10).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def run_checks(cfg, admin_name="admin", repo=ROOT, own_service_active=None, container_names="auto"):
+    if own_service_active is None:
+        own_service_active = user_service_active()
+    if container_names == "auto":
+        container_names = docker_container_names()
+    results = []
+    if cfg.is_server:
+        results.append((OK, f"config valid: mode server, {cfg.listen}, data {cfg.data_dir}, style {cfg.style}"))
+    else:
+        results.append((FAIL, f"config bermode '{cfg.mode}': isi `mode: server` di {cfg.path or cfgmod.config_path()}"))
+    results.append(check_memory(cfg, mem_total_mb()))
+    results.append(check_kvm(routeros_labs(repo)))
+    results.append(check_containerlab())
+    results.append(check_port(cfg.host, cfg.port, own_service_active))
+    results.append(check_containers(container_names, lab_clab_names(repo)))
+    results.append(check_admin(cfg, admin_name))
+    return results
+
+
+# --- migrasi data (murni file/DB, tanpa root khusus) ----------------------------------------
+
+def plan_session_copy(repo, data_dir, admin):
+    """[(sumber, tujuan)] untuk labs/<id>/sessions/<sesi>/ -> data_dir/instances/<admin>/<id>/sessions/<sesi>/.
+    Tujuan yang sudah ada dilewati supaya migrate aman dijalankan ulang."""
+    plan = []
+    for src in sorted(Path(repo).glob("labs/*/sessions/*/")):
+        if not src.is_dir():
+            continue
+        lab, sesi = src.parent.parent.name, src.name
+        dst = Path(data_dir) / "instances" / admin / lab / "sessions" / sesi
+        if not dst.exists():
+            plan.append((src, dst))
+    return plan
+
+
+def ensure_admin(db_path, admin_name):
+    """-> (username_admin, password_baru_atau_None). Memakai admin yang ada kalau ada."""
+    store = AccountStore(db_path=db_path)
+    existing = admin_usernames_ro(db_path) or []
+    if existing:
+        return (admin_name if admin_name in existing else existing[0]), None
+    password = accounts.random_password()
+    store.create_user(admin_name, password, role="admin", display_name="Administrator")
+    return admin_name, password
+
+
+def copy_sessions(plan):
+    for src, dst in plan:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(src, dst)
+    return len(plan)
+
+
+def chown_tree(path, owner):
+    """Hanya berarti sebagai root; user belum ada = dilewati dengan peringatan."""
+    import pwd
+    try:
+        pw = pwd.getpwnam(owner)
+    except KeyError:
+        return False
+    for dirpath, dirs, files in os.walk(path):
+        for name in [""] + dirs + files:
+            os.chown(Path(dirpath, name), pw.pw_uid, pw.pw_gid, follow_symlinks=False)
+    return True
+
+
+def render_note(cfg, admin, new_password_given, copied, repo=ROOT, when=None):
+    when = when or datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    return f"""Migrasi P-lab: mode Pribadi -> Server ({when})
+
+Config        : {cfg.path}
+Alamat        : {cfg.listen}
+Data          : {cfg.data_dir}
+Admin         : {admin}{' (dibuat baru; password dicetak sekali saat migrate)' if new_password_given else ' (sudah ada)'}
+Sesi disalin  : {copied} (dari {repo}/labs/*/sessions/ ke {cfg.data_dir}/instances/{admin}/)
+
+Yang TIDAK berubah: arsip sesi pribadi asli, labs/, dan ~/.config/p-lab. Semua
+masih utuh supaya rollback aman.
+
+Rollback ke mode Pribadi:
+  cd {repo} && ./install.sh --revert-pribadi
+Itu mematikan service system p-lab, memindahkan {cfg.path} (bukan menghapus), dan
+menyalakan lagi service user. Isi {cfg.data_dir} (akun, instance, sesi hasil salinan)
+TIDAK dihapus; hapus manual kalau sudah tidak diperlukan.
+"""
+
+
+# --- perintah -----------------------------------------------------------------------------
+
+ICON = {OK: "✓", WARN: "!", FAIL: "✗"}
+
+
+def print_results(results):
+    for level, text in results:
+        print(f"  {ICON[level]} {text}")
+    fails = sum(1 for lv, _ in results if lv == FAIL)
+    warns = sum(1 for lv, _ in results if lv == WARN)
+    print(f"\n  {len(results) - fails - warns} lolos, {warns} peringatan, {fails} gagal")
+    return fails
+
+
+def cmd_check(args):
+    cfg = cfgmod.load(args.config)
+    return 1 if print_results(run_checks(cfg, args.admin, own_service_active=args.own_service_active or None)) else 0
+
+
+def confirmed(args, stdin=sys.stdin):
+    if args.yes_i_understand:
+        return True
+    if not stdin.isatty():
+        print("Konfirmasi butuh terminal interaktif (atau pakai --yes-i-understand).", file=sys.stderr)
+        return False
+    print(f"\nIni mengalihkan P-lab dari mode Pribadi ke mode Server.")
+    typed = input(f"Ketik ulang `{CONFIRM_WORD}` untuk melanjutkan: ").strip()
+    return typed == CONFIRM_WORD
+
+
+def cmd_migrate(args):
+    cfg = cfgmod.load(args.config)
+    print("Pre-flight:")
+    if print_results(run_checks(cfg, args.admin, own_service_active=args.own_service_active or None)):
+        print("\nPeralihan dibatalkan: perbaiki yang gagal lalu ulangi.", file=sys.stderr)
+        return 1
+    if not confirmed(args):
+        print("Dibatalkan: konfirmasi tidak cocok. Tidak ada yang diubah.", file=sys.stderr)
+        return 1
+    cfg.data_dir.mkdir(parents=True, exist_ok=True)
+    admin, password = ensure_admin(cfg.db_path, args.admin)
+    copied = copy_sessions(plan_session_copy(ROOT, cfg.data_dir, admin))
+    note = render_note(cfg, admin, password is not None, copied)
+    (cfg.data_dir / NOTE).write_text(note)
+    if os.geteuid() == 0 and not chown_tree(cfg.data_dir, args.owner):
+        print(f"  ! user '{args.owner}' belum ada: data_dir tetap milik root (jalankan install.sh --server dulu)")
+    print(f"\n{note}")
+    if password:
+        print(f"  Login admin pertama (hanya ditampilkan SEKARANG):\n    username: {admin}\n    password: {password}\n")
+    print("  Berikutnya install.sh menyalakan service system p-lab.")
+    return 0
+
+
+def cmd_revert(args):
+    path = Path(args.config) if args.config else cfgmod.config_path()
+    try:
+        cfg = cfgmod.load(path) if path.exists() else None
+    except cfgmod.ConfigError:
+        cfg = None   # config rusak pun tetap boleh dikembalikan ke Pribadi
+    if path.exists():
+        backup = path.with_name(f"{path.name}.bak-pribadi-{datetime.date.today():%Y%m%d}")
+        path.rename(backup)
+        print(f"  ✓ config dipindah ke {backup} (tanpa config P-lab kembali ke mode Pribadi)")
+    else:
+        print(f"  ✓ tidak ada config di {path}: sudah mode Pribadi")
+    data = cfg.data_dir if cfg else Path(cfgmod.SERVER_DATA_DIR)
+    if data.exists():
+        print(f"  ! data server TIDAK dihapus: {data} (akun, instance, sesi salinan)")
+        try:
+            with open(data / NOTE, "a") as f:
+                f.write(f"\n[{datetime.datetime.now():%Y-%m-%d %H:%M}] Dikembalikan ke mode Pribadi.\n")
+        except OSError:
+            pass
+    missing = [p.name for p in (ROOT / "labs").glob("*/") if p.is_dir() and not (p / "problem.yaml").exists()]
+    if missing:
+        print(f"  ! folder labs tanpa problem.yaml: {', '.join(missing)}")
+    return 0
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="Peralihan P-lab Pribadi <-> Server")
+    ap.add_argument("command", choices=["check", "migrate", "revert"])
+    ap.add_argument("--config")
+    ap.add_argument("--admin", default="admin")
+    ap.add_argument("--owner", default="plab")
+    ap.add_argument("--own-service-active", action="store_true",
+                    help="service user p-lab sedang jalan (diberikan install.sh; root tidak bisa melihatnya)")
+    ap.add_argument("--yes-i-understand", action="store_true")
+    args = ap.parse_args(argv)
+    try:
+        accounts.validate_username(args.admin)
+        return {"check": cmd_check, "migrate": cmd_migrate, "revert": cmd_revert}[args.command](args)
+    except cfgmod.ConfigError as exc:
+        print(exc, file=sys.stderr)
+        return 2
+    except AccountError as exc:
+        print(f"Akun: {exc}", file=sys.stderr)
+        return 2
+    except PermissionError as exc:
+        print(f"Izin ditolak: {exc}. Jalankan lewat ./install.sh --server --migrate (memakai sudo).", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -5,7 +5,8 @@
 # - Command terstruktur dicatat oleh hook di dalam node (lab-rc.sh).
 # - Transcript mentah (input + output + timing) dicatat oleh `script` di host,
 #   untuk dibaca evaluator di Fase 2.
-# Dipakai langsung dari terminal, atau oleh ttyd (platform/serve).
+# Dipakai langsung dari terminal, atau oleh ttyd (platform/serve, server.py).
+# Instance dipilih env LAB_INSTANCE (default local), lihat platform/instance.py.
 set -euo pipefail
 
 if (( $# != 2 )); then
@@ -18,10 +19,14 @@ NODE=$2
 
 [[ $NODE =~ ^[a-z0-9-]+$ ]] || { echo "Nama node tidak valid: $NODE" >&2; exit 1; }
 
-TOPO=$(ls "$PROBLEM_DIR"/*.clab.yaml | head -1)
-LAB=$(sed -n 's/^name:[[:space:]]*//p' "$TOPO")
-CTR="clab-${LAB}-${NODE}"
-STATE="$PROBLEM_DIR/.state"
+PY="$(dirname "$HERE")/.venv/bin/python"
+[[ -x $PY ]] || PY=python3
+# LAB_CTR, LAB_NODE_KIND, LAB_STATE_DIR, ... untuk instance ini.
+INSTANCE_ENV=$("$PY" "$HERE/instance.py" env "$PROBLEM_DIR" --node "$NODE") || exit 1
+eval "$INSTANCE_ENV"
+export LAB_INSTANCE
+CTR=$LAB_CTR
+STATE=$LAB_STATE_DIR
 
 if [[ "$(docker inspect -f '{{.State.Running}}' "$CTR" 2>/dev/null)" != "true" ]]; then
   echo "Node '$NODE' tidak berjalan (container $CTR). Sudah ./reset.sh?" >&2
@@ -42,10 +47,7 @@ trap 'host_event shell_close' EXIT
 
 # Node RouterOS (kind mikrotik_ros) tidak punya bash: shell-nya proxy di host
 # (ros.py shell) yang mencatat event sendiri. Node lain: bash + hook lab-rc.sh.
-PY="$(dirname "$HERE")/.venv/bin/python"
-[[ -x $PY ]] || PY=python3
-KIND=$("$PY" -c 'import sys; sys.path.insert(0, sys.argv[1]); import ros; print(ros.node_kind(ros.load_topology(sys.argv[2]), sys.argv[3]))' "$HERE" "$PROBLEM_DIR" "$NODE")
-if [[ $KIND == mikrotik_ros ]]; then
+if [[ $LAB_NODE_KIND == mikrotik_ros ]]; then
   INNER="$PY $HERE/ros.py shell $PROBLEM_DIR $NODE"
 else
   INNER="docker exec -it -e LAB_NODE=$NODE -e LAB_SESSION=$SESSION $CTR bash --rcfile /etc/lab/rc -i"

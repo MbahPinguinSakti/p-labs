@@ -13,8 +13,6 @@ const MAIN = [
 ];
 const LEARN = [
   { to: "/belajar/networking", label: "Networking", icon: "network" },
-  { to: "/belajar/cybersecurity", label: "Cybersecurity", icon: "shield" },
-  { to: "/belajar/problem-solving", label: "Problem Solving", icon: "bulb" },
 ];
 
 function NavItem({ to, label, icon, end }: { to: string; label: string; icon: string; end?: boolean }) {
@@ -114,13 +112,32 @@ export function Avatar({ name, size = 40 }: { name: string; size?: number }) {
   );
 }
 
+const ROLE_LABEL = { admin: "Admin", guru: "Guru", siswa: "Siswa" } as const;
+
+/** Chip akun. Mode server: nama + role dan tombol Keluar; pribadi: akun lokal saja. */
 export function Account() {
-  const { me } = useAppData();
-  const name = me?.user ?? "…";
+  const { me, logout } = useAppData();
+  const name = me?.user?.display_name ?? "…";
+  if (!me?.auth) {
+    return (
+      <span className={s.account} title="Akun lokal (env LAB_USER)">
+        <Avatar name={name} size={32} />
+        <span>{name}</span>
+      </span>
+    );
+  }
   return (
-    <span className={s.account} title="Akun lokal (env LAB_USER)">
-      <Avatar name={name} size={32} />
-      <span>{name}</span>
+    <span className={s.accountGroup}>
+      <span className={s.account} title={me.user ? `Login sebagai ${me.user.username}` : undefined}>
+        <Avatar name={name} size={32} />
+        <span className={s.accountText}>
+          <span>{name}</span>
+          {me.user && <span className={s.accountRole}>{ROLE_LABEL[me.user.role] ?? me.user.role}</span>}
+        </span>
+      </span>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={() => void logout()}>
+        Keluar
+      </button>
     </span>
   );
 }

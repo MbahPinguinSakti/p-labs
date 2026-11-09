@@ -1,0 +1,199 @@
+#!/usr/bin/env python3
+"""Kelola akun P-lab dari terminal (hanya admin server yang punya akses shell).
+
+Usage: p-lab-admin <perintah> [opsi]
+
+  create-user <username> [--role siswa|guru|admin] [--name "Nama"] [--password-stdin]
+  import-csv <file.csv>            kolom: username,display_name,role,password
+  reset-password <username> [--password-stdin]
+  set-role <username> <role>
+  activate <username> | deactivate <username>
+  list [--role ROLE]
+
+Password ditanya lewat getpass kalau tidak dikirim lewat --password-stdin
+(supaya tidak muncul di riwayat shell atau daftar proses). Database ada di
+var/p-lab.db, bisa diganti dengan env LAB_DB. Logikanya ada di accounts.py.
+
+Mode Server: DB akun milik user `plab` (mode 0600), jadi jalankan dengan sudo:
+  sudo platform/p-lab-admin <perintah> ...
+Sebagai root, skrip menjalankan dirinya ulang sebagai pemilik data_dir (plab) dengan
+LAB_CONFIG yang sama, jadi DB tidak pernah dibuat milik root. User biasa ditolak.
+"""
+
+if __name__ == "__main__":
+    import _venv  # noqa: E402  (Python venv, lihat _venv.py)
+    _venv.ensure()
+
+import argparse
+import getpass
+import os
+import pwd
+import shutil
+import sqlite3
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import config as cfgmod  # noqa: E402
+from accounts import ROLES, AccountError, AccountStore  # noqa: E402
+
+SELF = Path(__file__).resolve()
+REEXEC_FLAG = "P_LAB_ADMIN_REEXEC"
+
+
+class Refused(Exception):
+    """Perintah tidak boleh dijalankan sebagai user ini (pesan untuk admin)."""
+
+
+def _owner_name(uid):
+    try:
+        return pwd.getpwuid(uid).pw_name
+    except KeyError:
+        return str(uid)
+
+
+def server_privilege(cfg, euid):
+    """Mode Server: -> None (lanjut) atau (uid, gid, nama) pemilik untuk dijalankan ulang.
+    Raise Refused bila tidak boleh. Murni (hanya stat), supaya mudah diuji."""
+    data = cfg.data_dir
+    if not data.is_dir():
+        raise Refused(f"data_dir belum ada: {data}. Jalankan ./install.sh --server dan --migrate dulu.")
+    st = data.stat()
+    if st.st_uid == 0:
+        raise Refused(f"data_dir {data} milik root, bukan plab; service tidak bisa memakainya. "
+                      f"Perbaiki: sudo chown -R plab: {data}")
+    if cfg.db_path.exists() and cfg.db_path.stat().st_uid != st.st_uid:
+        raise Refused(f"{cfg.db_path} milik {_owner_name(cfg.db_path.stat().st_uid)}, bukan "
+                      f"{_owner_name(st.st_uid)}. Perbaiki: sudo chown -R {_owner_name(st.st_uid)}: {data}")
+    if euid == st.st_uid:
+        return None
+    if euid == 0:
+        return st.st_uid, st.st_gid, _owner_name(st.st_uid)
+    raise Refused(f"DB akun milik {_owner_name(st.st_uid)} (mode 0600). Jalankan: "
+                  f"sudo platform/p-lab-admin {' '.join(sys.argv[1:])}".rstrip())
+
+
+def reexec_as(uid, gid, name, cfg):
+    if os.environ.get(REEXEC_FLAG):
+        raise Refused(f"gagal berpindah ke user {name}")
+    env = ["env", f"LAB_CONFIG={cfg.path}", f"{REEXEC_FLAG}=1", "PYTHONDONTWRITEBYTECODE=1"]
+    inner = [*env, sys.executable, str(SELF), *sys.argv[1:]]
+    if shutil.which("runuser"):
+        cmd = ["runuser", "-u", name, "--", *inner]
+    elif shutil.which("setpriv"):
+        cmd = ["setpriv", f"--reuid={uid}", f"--regid={gid}", "--init-groups", *inner]
+    else:
+        raise Refused(f"runuser/setpriv tidak ada; jalankan: sudo -u {name} platform/p-lab-admin ...")
+    os.execvp(cmd[0], cmd)
+
+
+def open_store():
+    """AccountStore dengan pemeriksaan hak akses mode Server."""
+    cfg = cfgmod.load() if (os.environ.get("LAB_CONFIG") or cfgmod.DEFAULT_PATH.exists()) else None
+    if cfg is not None and cfg.is_server and not os.environ.get("LAB_DB"):
+        target = server_privilege(cfg, os.geteuid())
+        if target:
+            reexec_as(*target, cfg)
+    return AccountStore()
+
+
+def read_password(args, confirm=True):
+    if args.password_stdin:
+        return sys.stdin.readline().rstrip("\r\n")
+    password = getpass.getpass("Password: ")
+    if confirm and getpass.getpass("Ulangi password: ") != password:
+        raise AccountError("Kedua password tidak sama.")
+    return password
+
+
+def cmd_create(store, args):
+    user = store.create_user(args.username, read_password(args), args.role, args.name)
+    print(f"Akun dibuat: {user['username']} ({user['role']})")
+
+
+def cmd_import(store, args):
+    result = store.import_csv(args.file)
+    for username, generated in result.created:
+        print(f"  dibuat  {username}" + (f"  password: {generated}" if generated else ""))
+    for line, message in result.errors:
+        print(f"  GAGAL   baris {line}: {message}", file=sys.stderr)
+    print(f"{len(result.created)} akun dibuat, {len(result.errors)} baris gagal.")
+    if result.created and any(g for _, g in result.created):
+        print("Catat password acak di atas; tidak bisa dilihat lagi nanti.")
+    return 1 if result.errors else 0
+
+
+def cmd_reset(store, args):
+    store.set_password(args.username, read_password(args))
+    print(f"Password {args.username} diganti; semua sesi loginnya dicabut.")
+
+
+def cmd_role(store, args):
+    user = store.set_role(args.username, args.role)
+    print(f"{user['username']} sekarang {user['role']}")
+
+
+def cmd_active(store, args):
+    user = store.set_active(args.username, args.command == "activate")
+    print(f"{user['username']}: {'aktif' if user['active'] else 'nonaktif'}")
+
+
+def cmd_list(store, args):
+    users = store.list_users(args.role)
+    print(f"{'USERNAME':<20}{'ROLE':<8}{'STATUS':<10}NAMA")
+    for u in users:
+        print(f"{u['username']:<20}{u['role']:<8}{'aktif' if u['active'] else 'nonaktif':<10}{u['display_name']}")
+    print(f"{len(users)} akun.")
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(prog="p-lab-admin", description="Kelola akun P-lab.")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p = sub.add_parser("create-user", help="buat akun")
+    p.add_argument("username")
+    p.add_argument("--role", choices=ROLES, default="siswa")
+    p.add_argument("--name", help="nama tampilan (default: username)")
+    p.add_argument("--password-stdin", action="store_true", help="baca password dari stdin")
+    p.set_defaults(func=cmd_create)
+
+    p = sub.add_parser("import-csv", help="impor akun dari CSV")
+    p.add_argument("file")
+    p.set_defaults(func=cmd_import)
+
+    p = sub.add_parser("reset-password", help="ganti password")
+    p.add_argument("username")
+    p.add_argument("--password-stdin", action="store_true")
+    p.set_defaults(func=cmd_reset)
+
+    p = sub.add_parser("set-role", help="ubah role")
+    p.add_argument("username")
+    p.add_argument("role", choices=ROLES)
+    p.set_defaults(func=cmd_role)
+
+    for name in ("activate", "deactivate"):
+        p = sub.add_parser(name, help=f"{name} akun")
+        p.add_argument("username")
+        p.set_defaults(func=cmd_active)
+
+    p = sub.add_parser("list", help="daftar akun")
+    p.add_argument("--role", choices=ROLES)
+    p.set_defaults(func=cmd_list)
+    return parser
+
+
+def main():
+    args = build_parser().parse_args()
+    try:
+        return args.func(open_store(), args) or 0
+    except (AccountError, Refused, cfgmod.ConfigError) as error:
+        print(f"Error: {error}", file=sys.stderr)
+    except (sqlite3.Error, OSError) as error:
+        print(f"Error: database akun tidak bisa dibuka/ditulis ({error}). Mode Server: jalankan "
+              "dengan `sudo platform/p-lab-admin ...`; periksa juga pemilik dan izin data_dir.",
+              file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

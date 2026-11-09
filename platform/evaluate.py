@@ -44,6 +44,7 @@ sys.path.insert(0, str(HERE))
 
 import scoring  # noqa: E402
 from checkpoints import Lab, render as render_template, replay_hits  # noqa: E402
+from instance import Instance, InstanceError, locate  # noqa: E402
 from llm import LLMError, get_backend, list_providers  # noqa: E402
 from report import report_md  # noqa: E402
 from transcript import NosRules, attach_outputs, build_timeline, load_events, render_timeline  # noqa: E402
@@ -112,18 +113,30 @@ class EvaluatorError(Exception):
 
 
 def resolve(path):
-    """Kembalikan (problem_dir, state_dir, live)."""
+    """Kembalikan (instance, state_dir, live).
+
+    path: Instance atau direktori soal (sesi live di .state/ instance; direktori
+    soal memakai instance dari LAB_INSTANCE), atau arsip sesi (golden/<sesi>,
+    sessions/<sesi>, termasuk arsip instance di var/instances/).
+    """
+    if isinstance(path, Instance):
+        return path, path.state_dir, True
     path = Path(path).resolve()
-    if (path / "problem.yaml").exists():
-        return path, path / ".state", True
-    for parent in path.parents:
-        if (parent / "problem.yaml").exists():
-            return parent, path, False
-    raise EvaluatorError(f"Tidak menemukan problem.yaml untuk {path}")
+    try:
+        if (path / "problem.yaml").exists():
+            instance = Instance.from_env(path)
+            return instance, instance.state_dir, True
+        instance, _base = locate(path)
+    except InstanceError as error:
+        raise EvaluatorError(str(error))
+    if instance is None:
+        raise EvaluatorError(f"Tidak menemukan problem.yaml untuk {path}")
+    return instance, path, False
 
 
-def run_verify(problem_dir, state_dir):
-    process = subprocess.run(["./verify.sh"], cwd=problem_dir, capture_output=True, text=True)
+def run_verify(instance, state_dir):
+    process = subprocess.run(["./verify.sh"], cwd=instance.problem_dir, capture_output=True, text=True,
+                             env=instance.env())
     try:
         result = json.loads(process.stdout.strip().splitlines()[-1])
     except (IndexError, json.JSONDecodeError):
@@ -136,8 +149,9 @@ def run_verify(problem_dir, state_dir):
 
 class Session:
     def __init__(self, path, live_verify=True):
-        self.problem_dir, self.state_dir, self.live = resolve(path)
-        self.lab = Lab(self.problem_dir, self.state_dir)
+        self.instance, self.state_dir, self.live = resolve(path)
+        self.problem_dir = self.instance.problem_dir
+        self.lab = Lab(self.instance, self.state_dir)
         if not self.lab.session:
             raise EvaluatorError(f"Tidak ada session_id di {self.state_dir}")
         self.problem = self.lab.problem
@@ -148,7 +162,7 @@ class Session:
         self.ground_truth = json.loads(truth.read_text())
 
         if self.live and live_verify:
-            self.verify_result = run_verify(self.problem_dir, self.state_dir)
+            self.verify_result = run_verify(self.instance, self.state_dir)
         else:
             self.verify_result = json.loads((self.state_dir / "verify.json").read_text())
 

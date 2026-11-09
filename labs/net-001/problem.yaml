@@ -9,6 +9,11 @@ ui:
   summary: "host-a dan host-b di VLAN 20 putus setelah maintenance. Temukan penyebabnya tanpa merusak desain VLAN."
   ticket: "#4127"
 nos: linux-bridge
+# Perkiraan RAM satu instance (platform/capacity.py, batas capacity.mem_mb di mode Server).
+# 5 container netshoot tanpa VM: masing-masing ~10 MB saat diam, dibulatkan ~30 MB
+# untuk shell docker exec yang dibuka pemain.
+resources:
+  mem_mb: 150
 parameters:
   vlan_id: 20
   faulty_switch: sw2

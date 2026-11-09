@@ -52,10 +52,16 @@ git clone https://github.com/MbahPinguinSakti/p-labs.git p-lab && cd p-lab
 ./install.sh
 ```
 
-Installer mengecek dan memasang docker, containerlab, ttyd, Python, dan Node.
+Installer mengecek dan memasang docker, containerlab, Python, dan Node (ttyd opsional, hanya untuk mode terminal tanpa web).
 Setelah itu ia membangun web UI dan memasangnya sebagai service yang jalan
 otomatis saat login. Kalau sudah selesai, buka **http://localhost:8000** atau
 ikon **P-lab** di menu aplikasi.
+
+P-lab punya dua mode. **Pribadi** (cara di atas) untuk satu orang di komputernya
+sendiri. **Server** (`./install.sh --server`) untuk sekolah atau kantor: banyak
+pengguna masuk lewat browser dengan akun masing-masing, dan tiap orang
+mendapat lab sendiri. Pemasangannya bertahap (`--server`, isi config, `--check`,
+`--migrate`); lihat [Mode Server](docs/server.md).
 
 | Kalau kamu ingin | Baca |
 |---|---|
@@ -80,6 +86,7 @@ Lab RouterOS butuh image yang dibangun sekali di mesinmu
 | Halaman | Isi |
 |---|---|
 | [Instalasi](docs/instalasi.md) | kebutuhan, opsi installer, deploy tanpa sudo, update, uninstall, masalah umum |
+| [Mode Server](docs/server.md) | multi-user untuk sekolah/kantor: instalasi, akun, kapasitas, keamanan, migrasi dari mode Pribadi |
 | [Penggunaan](docs/penggunaan.md) | memainkan lab di web UI, hint, penilaian, membaca hasil, mode terminal |
 | [Membuat lab](docs/membuat-lab.md) | membuat soal dari template, referensi `problem.yaml`, menguji soal |
 | [Arsitektur](docs/arsitektur.md) | komponen, alur data satu sesi, isi `.state/` |

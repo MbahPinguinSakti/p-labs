@@ -1,0 +1,23 @@
+.wrap {
+  position: absolute;
+  inset: 0;
+  background: #0b0e0c;
+}
+.host {
+  position: absolute;
+  inset: var(--space-sm);
+}
+/* Status koneksi di atas terminal; terminal tetap terlihat di belakangnya (riwayat output). */
+.overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: color-mix(in srgb, #0b0e0c 88%, transparent);
+  border-top: 1px solid var(--color-border);
+}

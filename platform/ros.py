@@ -4,6 +4,9 @@
   ros.py shell <lab_dir> <node>          # shell pemain (dipanggil lab-shell)
   ros.py exec  <lab_dir> <node> <cmd>    # satu command, untuk inject/verify/state_check
 
+Router yang dituju milik instance dari env LAB_INSTANCE (default local), sama
+seperti yang di-export reset-lab ke inject.sh/verify.sh (instance.py).
+
 RouterOS bukan bash, jadi hook perekaman lab-rc.sh tidak bisa dipasang di
 dalamnya. Gantinya, shell pemain dijalankan di host: proxy kecil yang meniru
 CLI RouterOS (prompt, konteks menu, `..`, `/`), mengirim setiap command lewat
@@ -29,6 +32,8 @@ import time
 from pathlib import Path
 
 import yaml
+
+from instance import Instance
 
 ROS_KIND = "mikrotik_ros"
 USERNAME, PASSWORD = "admin", "admin"   # default containerlab untuk mikrotik_ros
@@ -153,11 +158,11 @@ def container_ip(container):
     return ips[0]
 
 
-def connect(lab_dir, node):
+def connect(lab, node):
+    """SSH ke router `node`. lab: Instance, atau direktori soal (instance dari LAB_INSTANCE)."""
     import paramiko  # diimpor di sini: server/checkpoints tidak butuh paramiko untuk lab Linux
 
-    topo = load_topology(lab_dir)
-    host = container_ip(f"clab-{topo['name']}-{node}")
+    host = container_ip(Instance.coerce(lab).container(node))
     client = paramiko.SSHClient()
     # Host key berubah setiap deploy dan alamatnya hanya di jaringan management lokal.
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -194,9 +199,9 @@ def run(client, command, timeout=EXEC_TIMEOUT, echo=None):
     return "".join(chunks)
 
 
-def exec_once(lab_dir, node, command, timeout=EXEC_TIMEOUT):
+def exec_once(lab, node, command, timeout=EXEC_TIMEOUT):
     """(output, ok). Dipakai checkpoints.py (state_check), inject.sh, dan verify.sh."""
-    client = connect(lab_dir, node)
+    client = connect(lab, node)
     try:
         output = run(client, command, timeout)
     finally:
@@ -227,14 +232,14 @@ def completer_for(context_ref):
     return complete
 
 
-def shell(lab_dir, node):
+def shell(lab, node):
     import readline
 
-    lab_dir = Path(lab_dir).resolve()
-    state = lab_dir / ".state"
+    inst = Instance.coerce(lab)
+    state = inst.state_dir
     session = (state / "session_id").read_text().strip() if (state / "session_id").exists() else "unknown"
     try:
-        client = connect(lab_dir, node)
+        client = connect(inst, node)
     except ConnectionError as error:
         sys.exit(str(error))
 
@@ -273,7 +278,7 @@ def shell(lab_dir, node):
         except Exception as error:  # noqa: BLE001 - koneksi putus: coba sambung ulang sekali
             print(f"koneksi ke {node} terputus ({error}), menyambung ulang…")
             try:
-                client = connect(lab_dir, node)
+                client = connect(inst, node)
                 output = run(client, command, echo=lambda t: (sys.stdout.write(t), sys.stdout.flush()))
                 code = 1 if failed(output) else 0
             except Exception as again:  # noqa: BLE001

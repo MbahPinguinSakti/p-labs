@@ -8,9 +8,8 @@
 #   correctness   0 = ping masih gagal
 # Exit code: 0 jika correctness 100, 1 selain itu, 2 jika lab tidak bisa diakses.
 set -uo pipefail
-
-LAB=net001
-c() { echo "clab-${LAB}-$1"; }
+source "$(dirname "$0")/../../platform/labenv.sh"   # LAB_STATE_DIR, ctr <node>
+c() { ctr "$1"; }
 
 # Preflight: jangan keluarkan skor jika lab tidak bisa diakses sama sekali.
 # Exit code 2 = error lingkungan, bukan hasil penilaian.

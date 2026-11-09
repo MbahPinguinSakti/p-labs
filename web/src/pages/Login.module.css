@@ -1,0 +1,77 @@
+.page {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: var(--space-3xl) var(--space-lg);
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+  width: min(400px, 100%);
+  padding: var(--space-3xl);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+.brandMark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-mark);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: 800;
+  font-size: 18px;
+}
+.brandText {
+  font-weight: 700;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+}
+.heading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+}
+.title {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-soft);
+}
+.input {
+  height: 46px;
+  padding: 0 var(--space-lg);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 15px;
+  transition: border-color 180ms var(--ease-out);
+}
+.input:focus {
+  outline: none;
+  border-color: var(--color-accent-border);
+  box-shadow: 0 0 0 3px var(--color-accent-subtle);
+}
+.help {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  text-align: center;
+}

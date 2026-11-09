@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 # Reset sebuah lab: destroy, deploy ulang, verifikasi sehat, lalu inject fault.
 # Usage: reset-lab <lab_dir> [argumen untuk inject.sh...]
+#        reset-lab --destroy-only <lab_dir>
+#
+# --destroy-only hanya mematikan lab instance (containerlab destroy --cleanup,
+# termasuk jaringan management instance) dan menghapus session_id, tanpa deploy.
+# Dipakai server untuk kebijakan kapasitas (platform/capacity.py: satu lab per
+# user, lab idle, lab milik akun nonaktif). Sengaja satu script dengan reset:
+# env instance dan cara memanggil containerlab (sudo/setuid) cukup ditulis sekali.
+# .state/ dibiarkan supaya bisa diarsipkan; session_id dihapus karena sesi di lab
+# yang sudah mati tidak bisa dimainkan atau dinilai (verify butuh container).
 #
 # Dipanggil oleh labs/<id>/reset.sh (satu baris) dan oleh web UI (tombol
 # Deploy / Reset lab). Semua yang spesifik soal dibaca dari problem.yaml:
@@ -8,6 +17,12 @@
 #   fault_injection.script  script inject (default inject.sh)
 #   goal_state.verify_script script verify (default verify.sh)
 #   deploy.ready_timeout    detik menunggu node siap + verify sehat (default 0)
+#
+# Instance yang dideploy dipilih env LAB_INSTANCE (default local = layout lama:
+# labs/<id>/.state, nama lab asli). Instance lain memakai topologi hasil render
+# di var/instances/<user>/<id>/ (platform/instance.py). LAB_INSTANCE,
+# LAB_STATE_DIR, LAB_CLAB_NAME, dan LAB_TOPO di-export untuk inject/verify
+# (kontrak di platform/labenv.sh).
 #
 # containerlab dipanggil langsung kalau sudah sudo-less (setuid + grup
 # clab_admins, lihat platform/setup-sudoless.sh). Kalau belum, lewat sudo.
@@ -20,8 +35,13 @@ ROOT=$(dirname "$HERE")
 PY="$ROOT/.venv/bin/python"
 [[ -x $PY ]] || PY=python3
 
+DESTROY_ONLY=0
+if [[ ${1:-} == --destroy-only ]]; then
+  DESTROY_ONLY=1
+  shift
+fi
 if (( $# < 1 )); then
-  echo "Usage: reset-lab <lab_dir> [argumen inject...]" >&2
+  echo "Usage: reset-lab <lab_dir> [argumen inject...] | reset-lab --destroy-only <lab_dir>" >&2
   exit 1
 fi
 LAB_DIR=$(cd "$1" && pwd)
@@ -36,17 +56,36 @@ if (( EUID == 0 )); then
 fi
 
 [[ -f problem.yaml ]] || { echo "Tidak ada problem.yaml di $LAB_DIR" >&2; exit 1; }
-read -r LAB_ID TOPO INJECT VERIFY READY CLAB_NAME < <("$PY" - <<'EOF'
+read -r LAB_ID INJECT VERIFY READY < <("$PY" - <<'EOF'
 import yaml
 p = yaml.safe_load(open("problem.yaml"))
-t = yaml.safe_load(open(p["lab_topology"]))
-print(p["id"], p["lab_topology"],
+print(p["id"],
       (p.get("fault_injection") or {}).get("script", "inject.sh"),
       (p.get("goal_state") or {}).get("verify_script", "verify.sh"),
-      int((p.get("deploy") or {}).get("ready_timeout", 0)), t["name"])
+      int((p.get("deploy") or {}).get("ready_timeout", 0)))
 EOF
 )
-[[ -n ${VERIFY:-} ]] || { echo "problem.yaml tidak terbaca (butuh id dan lab_topology)." >&2; exit 1; }
+[[ -n ${READY:-} ]] || { echo "problem.yaml tidak terbaca (butuh id)." >&2; exit 1; }
+
+# Instance: path state, nama lab, dan topologi (dirender untuk user selain local).
+INSTANCE_ENV=$("$PY" "$HERE/instance.py" env "$LAB_DIR" --render) \
+  || { echo "Instance tidak bisa disiapkan (cek LAB_INSTANCE, lab_topology, dan name topologi)." >&2; exit 1; }
+eval "$INSTANCE_ENV"
+export LAB_INSTANCE LAB_PROBLEM_DIR LAB_STATE_DIR LAB_CLAB_NAME LAB_TOPO
+
+# Script soal gaya lama (clab-<nama>-<node>, .state/ langsung) akan mengenai lab
+# instance local milik orang lain. Untuk instance user, tolak sebelum destroy/deploy.
+# Destroy saja tidak menjalankan script soal, jadi kontrak tidak perlu dicek.
+if [[ $LAB_INSTANCE != local && $DESTROY_ONLY == 0 ]]; then
+  if ! CONTRACT=$("$PY" -c 'import sys, yaml; sys.path.insert(0, sys.argv[1]); import lablint
+errors = lablint.script_contract_errors(sys.argv[2], yaml.safe_load(open(sys.argv[2] + "/problem.yaml")))
+print("\n".join(errors)); sys.exit(1 if errors else 0)' "$HERE" "$LAB_DIR"); then
+    echo "Lab ini belum mendukung instance per user:" >&2
+    printf '  %s\n' "$CONTRACT" >&2
+    echo "Perbaiki script soal (lihat docs/membuat-lab.md, Kontrak env script soal)." >&2
+    exit 1
+  fi
+fi
 
 CLAB_BIN=$(command -v containerlab) || { echo "containerlab belum terinstall (lihat docs/instalasi.md)." >&2; exit 1; }
 if [[ -u $CLAB_BIN ]]; then
@@ -58,13 +97,20 @@ else
 fi
 
 echo "==> destroy"
-"${CLAB[@]}" destroy -t "$TOPO" --cleanup 2>/dev/null || true
-rm -rf .state 2>/dev/null || sudo rm -rf .state
+if (( DESTROY_ONLY )); then
+  # Gagal destroy di sini harus terlihat (server menganggap RAM-nya sudah bebas).
+  "${CLAB[@]}" destroy -t "$LAB_TOPO" --cleanup
+  rm -f "$LAB_STATE_DIR/session_id"
+  echo "Lab $LAB_CLAB_NAME dimatikan."
+  exit 0
+fi
+"${CLAB[@]}" destroy -t "$LAB_TOPO" --cleanup 2>/dev/null || true
+rm -rf "$LAB_STATE_DIR" 2>/dev/null || sudo rm -rf "$LAB_STATE_DIR"
 # Dibuat sebelum deploy supaya bind mount events/ tetap milik user, bukan root.
-mkdir -p .state/events .state/tty
+mkdir -p "$LAB_STATE_DIR/events" "$LAB_STATE_DIR/tty"
 
 echo "==> deploy"
-"${CLAB[@]}" deploy -t "$TOPO"
+"${CLAB[@]}" deploy -t "$LAB_TOPO"
 
 # Node VM (mis. RouterOS lewat vrnetlab) sudah "running" jauh sebelum OS-nya
 # siap. Tunggu healthcheck container-nya, lalu ulangi verify sampai sehat
@@ -72,7 +118,7 @@ echo "==> deploy"
 # deploy.ready_timeout di problem.yaml (detik, default 0 = sekali coba).
 echo "==> verify"
 deadline=$(( SECONDS + READY ))
-for ctr in $(docker ps --filter "label=containerlab=$CLAB_NAME" --format '{{.Names}}'); do
+for ctr in $(docker ps --filter "label=containerlab=$LAB_CLAB_NAME" --format '{{.Names}}'); do
   while [[ "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$ctr")" == starting ]]; do
     (( SECONDS < deadline )) || { echo "$ctr belum siap setelah ${READY} detik." >&2; exit 1; }
     sleep 3
@@ -88,9 +134,13 @@ done
 
 echo "==> inject"
 "./$INJECT" "$@"
-[[ -f .state/ground_truth.json ]] || { echo "$INJECT tidak menulis .state/ground_truth.json." >&2; exit 1; }
+[[ -f $LAB_STATE_DIR/ground_truth.json ]] || { echo "$INJECT tidak menulis \$LAB_STATE_DIR/ground_truth.json." >&2; exit 1; }
 # session_id paling akhir: ada session_id = sesi siap dimainkan. Kalau tahap mana
 # pun gagal, lab tidak terlihat seperti sesi aktif tanpa ground truth.
-date +%Y%m%d-%H%M%S > .state/session_id
-echo "Sesi $(cat .state/session_id) siap. Buka http://localhost:8000/labs/$LAB_ID"
-echo "(atau dari terminal: $HERE/lab-shell . <node>)"
+date +%Y%m%d-%H%M%S > "$LAB_STATE_DIR/session_id"
+echo "Sesi $(cat "$LAB_STATE_DIR/session_id") siap. Buka http://localhost:8000/labs/$LAB_ID"
+if [[ $LAB_INSTANCE == local ]]; then
+  echo "(atau dari terminal: $HERE/lab-shell . <node>)"
+else
+  echo "(atau dari terminal: LAB_INSTANCE=$LAB_INSTANCE $HERE/lab-shell . <node>)"
+fi

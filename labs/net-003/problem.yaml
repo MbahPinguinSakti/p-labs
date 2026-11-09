@@ -10,6 +10,10 @@ ui:
 nos: routeros
 deploy:
   ready_timeout: 420              # tiga VM RouterOS + konvergensi OSPF
+# Perkiraan RAM satu instance (platform/capacity.py): 3 router CHR x ~400 MB + 2 host
+# netshoot x ~30 MB, dibulatkan ke atas.
+resources:
+  mem_mb: 1300
 
 parameters:
   router: r2

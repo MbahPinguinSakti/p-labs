@@ -5,10 +5,10 @@
 #   correctness  50 = masalah selesai lewat "fix" yang merusak desain
 #   correctness   0 = masalah belum selesai
 #   exit 0 jika 100, 1 selain itu, 2 jika lab tidak bisa diakses (bukan hasil penilaian)
+#   container lewat `ctr <node>` (labenv.sh), bukan clab-<nama>-<node>
 set -uo pipefail
-
-LAB=__CLAB_NAME__
-c() { echo "clab-${LAB}-$1"; }
+source "$(dirname "$0")/../../platform/labenv.sh"   # LAB_STATE_DIR, ctr <node>
+c() { ctr "$1"; }
 fail() { printf '{"problem": "__ID__", "error": "%s"}\n' "$1"; exit 2; }
 
 docker info >/dev/null 2>&1 || fail "Docker tidak bisa diakses"

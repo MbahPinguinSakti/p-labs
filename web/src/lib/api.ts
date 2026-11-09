@@ -96,11 +96,22 @@ export type LiveState = {
   deploy?: DeployJob | null;
 };
 
+export type Role = "admin" | "guru" | "siswa";
+
+export type User = { username: string; display_name: string; role: Role };
+
 export type Me = {
-  user: string;
-  llm: { provider: string; model: string | null; missing_env: string[] | null };
+  // pribadi: tanpa login (user = akun lokal). server: wajib login; user null = belum login.
+  mode: "pribadi" | "server";
+  // mandiri: semua setara + leaderboard antar-user. kelas: guru melihat progres siswa.
+  style: "mandiri" | "kelas";
+  auth: boolean;
+  user: User | null;
+  // llm dan deploy hanya dikirim untuk user yang sudah login (mode Server tanpa
+  // login: tidak ada), jadi selalu baca dengan `?.`.
+  llm?: { provider: string; model: string | null; missing_env: string[] | null };
   // Bisakah server menjalankan reset.sh tanpa password sudo (lihat platform/setup-sudoless.sh)?
-  deploy: { available: boolean; mode: "setuid" | "sudo" | null; reason: string | null };
+  deploy?: { available: boolean; mode: "setuid" | "sudo" | null; reason: string | null };
 };
 
 export type TimelineEntry = {
@@ -166,12 +177,20 @@ export type LeaderEntry = {
   rank: number;
   name: string;
   you: boolean;
+  // Mode server: username user lain (tidak ada untuk entri anonim di gaya kelas).
+  username?: string;
+  anonymous?: boolean;
   golden?: boolean;
   lab?: string;
   session?: string;
   points: number;
   labs: number;
   methodology_avg: number | null;
+};
+
+export type ClassProgress = {
+  labs: { id: string; title: string }[];
+  users: (User & { sessions: number; points: number; best_scores: Record<string, number>; last_session: number | null })[];
 };
 
 export class ApiError extends Error {
@@ -182,12 +201,21 @@ export class ApiError extends Error {
   }
 }
 
+// Dikirim saat server menjawab 401 (sesi login habis / logout di tab lain).
+// AppDataProvider mendengarkannya dan memuat ulang /api/me, sehingga halaman Login muncul.
+export const UNAUTHORIZED_EVENT = "plab:unauthorized";
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`/api${path}`, {
     method,
     headers: body === undefined ? undefined : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
+    credentials: "same-origin",
   });
+  if (res.status === 401 && path !== "/auth/login") {
+    // 401 dari login = password salah, ditampilkan di form; selain itu = belum/tidak lagi login.
+    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+  }
   if (!res.ok) {
     let detail = res.statusText;
     try {
@@ -203,10 +231,14 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 export const api = {
   me: () => request<Me>("GET", "/me"),
+  login: (username: string, password: string) =>
+    request<{ user: User }>("POST", "/auth/login", { username, password }),
+  logout: () => request<{ ok: boolean }>("POST", "/auth/logout"),
   labs: () => request<LabCard[]>("GET", "/labs"),
   lab: (id: string) => request<LabDetail>("GET", `/labs/${id}`),
   session: (id: string) => request<LiveState>("GET", `/labs/${id}/session`),
-  runtime: (id: string) => request<{ ttyd_port: number; ttyd: boolean; ttyd_available: boolean; watcher: boolean }>("POST", `/labs/${id}/runtime`),
+  // Hanya checkpoint watcher; terminal lewat WebSocket /api/labs/{id}/term/{node} (termbridge.py).
+  runtime: (id: string) => request<{ watcher: boolean }>("POST", `/labs/${id}/runtime`),
   hint: (id: string, level?: number) =>
     request<{ level: number; text: string; penalty: number; new: boolean }>("POST", `/labs/${id}/hint`, { level: level ?? null }),
   deploy: (id: string) => request<DeployJob>("POST", `/labs/${id}/deploy`),
@@ -215,4 +247,5 @@ export const api = {
   result: (id: string, session: string) => request<SessionResult>("GET", `/labs/${id}/sessions/${session}`),
   progress: () => request<ProgressData>("GET", "/progress"),
   leaderboard: () => request<LeaderEntry[]>("GET", "/leaderboard"),
+  classProgress: () => request<ClassProgress>("GET", "/class/progress"),
 };

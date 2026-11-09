@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { Icon } from "../components/Icon";
 import { PageHeader } from "../components/Layout";
 import { Modal } from "../components/Modal";
+import { Terminal } from "../components/Terminal";
 import { layers, Topology } from "../components/Topology";
 import { api, ApiError, type LabDetail, type LiveCheckpoint, type LiveState } from "../lib/api";
 import { useAppData } from "../lib/appData";
@@ -11,7 +12,7 @@ import { category, clock, date } from "../lib/format";
 import { useApi, useLiveSession, useNow } from "../lib/hooks";
 import s from "./LabSession.module.css";
 
-// Halaman Sesi Lab: tiket + checkpoint + hint | terminal per node (ttyd) | topologi + aktivitas.
+// Halaman Sesi Lab: tiket + checkpoint + hint | terminal per node (xterm.js) | topologi + aktivitas.
 // State live datang dari WebSocket (/api/labs/:id/ws); server hanya mengirim yang
 // boleh dilihat pemain (tanpa ground truth, tanpa teks hint yang belum dibuka).
 
@@ -76,7 +77,7 @@ function StartSession({ lab, state }: { lab: LabDetail; state: LiveState }) {
   const deployed = state.running && state.running.length === state.nodes.length;
   const deployJob = state.deploy;
   const deploying = deployJob?.status === "running";
-  const canDeploy = me?.deploy.available ?? false;
+  const canDeploy = me?.deploy?.available ?? false;
 
   const call = async (fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -100,7 +101,7 @@ function StartSession({ lab, state }: { lab: LabDetail; state: LiveState }) {
         Deploy dari terminal (containerlab butuh sudo):
         <br />
         <code>cd labs/{lab.id} && ./reset.sh</code>
-        {me?.deploy.reason && (
+        {me?.deploy?.reason && (
           <>
             <br />
             <span className="soft">Supaya bisa dari sini: {me.deploy.reason}</span>
@@ -263,19 +264,18 @@ function ActiveSession({ lab, state, connected }: { lab: LabDetail; state: LiveS
   }, [lab.topology, state.nodes]);
   const [node, setNode] = useState(() => order[0]);
   const [opened, setOpened] = useState<string[]>([node]);
-  const [runtime, setRuntime] = useState<{ port: number; ok: boolean; error?: string } | null>(null);
+  const [runtimeError, setRuntimeError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<null | "hint" | "finish" | "reset">(null);
   const job = state.job;
   const running = job?.status === "running";
   const now = useNow(!running);
 
-  // ttyd + watcher dijalankan server untuk sesi ini (idempoten).
+  // Watcher dijalankan server untuk sesi ini (idempoten). Terminal sendiri tidak
+  // butuh proses terpisah: WebSocket ke server dibuka per node oleh <Terminal>.
   useEffect(() => {
     let cancelled = false;
-    api
-      .runtime(lab.id)
-      .then((r) => !cancelled && setRuntime({ port: r.ttyd_port, ok: r.ttyd, error: r.ttyd_available ? undefined : "ttyd belum terinstall" }))
-      .catch((err) => !cancelled && setRuntime({ port: 0, ok: false, error: String(err.message ?? err) }));
+    setRuntimeError(null);
+    api.runtime(lab.id).catch((err) => !cancelled && setRuntimeError(String(err.message ?? err)));
     return () => {
       cancelled = true;
     };
@@ -339,26 +339,13 @@ function ActiveSession({ lab, state, connected }: { lab: LabDetail; state: LiveS
             ))}
           </div>
           <div className={s.termBody}>
-            {runtime?.ok ? (
-              // Satu iframe per node yang pernah dibuka: shell tetap hidup saat pindah tab.
-              opened.map((n) => (
-                <iframe
-                  key={`${state.session}-${n}`}
-                  title={`Terminal ${n}`}
-                  src={`http://${location.hostname}:${runtime.port}/?arg=${encodeURIComponent(n)}`}
-                  className={s.frame}
-                  hidden={n !== node}
-                />
-              ))
-            ) : (
-              <div className={s.termEmpty}>
-                {runtime?.error ? (
-                  <p className="notice notice-ember">Terminal tidak bisa dijalankan: {runtime.error}</p>
-                ) : (
-                  <p className="soft">Menyiapkan terminal…</p>
-                )}
+            {/* Satu terminal per node yang pernah dibuka: shell tetap hidup saat pindah tab. */}
+            {opened.map((n) => (
+              <div key={`${state.session}-${n}`} className={s.frame} hidden={n !== node}>
+                <Terminal labId={lab.id} node={n} active={n === node} />
               </div>
-            )}
+            ))}
+            {runtimeError && <p className={`notice notice-ember ${s.termNotice}`}>Watcher tidak jalan: {runtimeError}</p>}
           </div>
           <footer className={s.termFoot}>
             <span className={`dot ${connected ? "dot-live" : ""}`} style={connected ? undefined : { background: "var(--color-ember)" }} />
@@ -394,8 +381,8 @@ function ActiveSession({ lab, state, connected }: { lab: LabDetail; state: LiveS
         <FinishDialog
           labId={lab.id}
           state={state}
-          llmMissing={me?.llm.missing_env ?? null}
-          provider={me?.llm.provider ?? ""}
+          llmMissing={me?.llm?.missing_env ?? null}
+          provider={me?.llm?.provider ?? ""}
           onClose={() => setDialog(null)}
         />
       )}
