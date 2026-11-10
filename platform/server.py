@@ -59,6 +59,7 @@ ROOT = HERE.parent
 sys.path.insert(0, str(HERE))
 
 import config as configmod  # noqa: E402
+import version  # noqa: E402
 import capacity  # noqa: E402
 import evaluate  # noqa: E402
 import ros  # noqa: E402
@@ -1202,8 +1203,9 @@ def me(request: Request):
         return info
     provider = os.environ.get("LAB_LLM_PROVIDER") or "anthropic"
     missing = next((m for name, _desc, m in list_providers() if name == provider), None)
+    # Versi hanya untuk yang sudah login: commit/branch membantu admin, bukan orang asing.
     return {**info, "llm": {"provider": provider, "model": os.environ.get("LAB_LLM_MODEL"), "missing_env": missing},
-            "deploy": deploy_support()}
+            "deploy": deploy_support(), "version": version.info()}
 
 
 @app.get("/api/labs")
@@ -1712,6 +1714,7 @@ def main():
     if not WEB_DIST.exists():
         print("web/dist belum ada: jalankan `npm install && npm run build` di web/ "
               "(atau `npm run dev` untuk mode pengembangan).", file=sys.stderr)
+    log.info("P-lab %s", version.describe())
     log.info("mode %s%s", cfg.mode, f" (gaya {cfg.style}, data {cfg.data_dir})" if cfg.is_server else "")
     # proxy_headers=False: bawaan uvicorn mempercayai X-Forwarded-* dari 127.0.0.1;
     # di sini hanya trusted_proxies (client_ip, is_https) yang menentukan.

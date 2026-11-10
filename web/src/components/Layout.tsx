@@ -74,6 +74,19 @@ function StaffNav() {
   );
 }
 
+/** Versi server di dasar sidebar: saat melapor masalah, kode yang jalan langsung terlihat. */
+function VersionTag() {
+  const v = useAppData().me?.version;
+  if (!v) return null;
+  const detail = [v.commit, v.branch, v.dirty ? "ada perubahan lokal" : null].filter(Boolean).join(" · ");
+  return (
+    <p className={s.version} title={detail ? `P-lab ${v.version} · ${detail}` : undefined}>
+      P-lab v{v.version}
+      {v.commit && <span className={s.versionCommit}> · {v.commit}{v.dirty ? "*" : ""}</span>}
+    </p>
+  );
+}
+
 export function Layout() {
   return (
     <div className={s.shell}>
@@ -98,6 +111,7 @@ export function Layout() {
         <StaffNav />
         <p className={`overline ${s.section}`}>Sesi aktif</p>
         <ActiveSession />
+        <VersionTag />
       </aside>
       <main className={s.main} id="konten">
         <Outlet />

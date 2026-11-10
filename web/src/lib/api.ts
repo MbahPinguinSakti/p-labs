@@ -117,6 +117,8 @@ export type Me = {
   llm?: { provider: string; model: string | null; missing_env: string[] | null };
   // Bisakah server menjalankan reset.sh tanpa password sudo (lihat platform/setup-sudoless.sh)?
   deploy?: { available: boolean; mode: "setuid" | "sudo" | null; reason: string | null };
+  // Kode yang sedang jalan di server (platform/version.py). dirty null = tidak bisa dicek.
+  version?: { version: string; commit: string | null; branch: string | null; dirty: boolean | null };
 };
 
 export type TimelineEntry = {

@@ -205,6 +205,28 @@ git pull
 Installer aman dijalankan berulang. Ia memasang paket Python dan npm yang
 berubah, membangun ulang web UI, lalu me-restart service.
 
+### Versi
+
+Nomor versi ada di file `VERSION` (misalnya `0.3.0`). Selama masih `0.x`, format
+config dan data bisa berubah antar-versi; langkah tambahannya ditulis di catatan
+rilis. Setiap rilis diberi tag git (`v0.3.0`), jadi kamu bisa memasang versi
+tertentu, bukan `main` yang terus bergerak:
+
+```bash
+git fetch --tags
+git checkout v0.3.0
+./install.sh            # mode Server: ./install.sh --server
+```
+
+Untuk mengetahui kode mana yang sedang dipakai, lihat salah satu:
+
+- baris pertama keluaran `./install.sh` (juga `--check`): `P-lab 0.3.0 (f75e43c, main)`;
+- log service saat start: `journalctl --user -u p-lab` (Pribadi) atau `sudo journalctl -u p-lab` (Server), cari `P-lab 0.3.0`;
+- dasar sidebar web: `P-lab v0.3.0 · f75e43c`.
+
+Tanda `*` atau "ada perubahan lokal" berarti ada file di repo yang diubah dan belum
+di-commit. Sertakan baris versi ini saat melaporkan masalah.
+
 ## Uninstall
 
 ```bash

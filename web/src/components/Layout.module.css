@@ -38,6 +38,15 @@
   font-size: 19px;
   letter-spacing: -0.02em;
 }
+.version {
+  margin-top: auto;
+  padding: var(--space-lg) var(--space-sm) 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.versionCommit {
+  font-family: var(--font-code);
+}
 .nav {
   display: flex;
   flex-direction: column;

@@ -218,6 +218,9 @@ revert_pribadi() {
   ok "mode Pribadi aktif: http://localhost:8000"
 }
 
+# Versi kode yang dipasang (VERSION + commit); stdlib saja, jadi jalan sebelum .venv ada.
+printf '%sP-lab %s%s\n' "$B" "$(python3 platform/version.py 2>/dev/null || cat VERSION 2>/dev/null || echo '?')" "$N"
+
 if (( REVERT )); then revert_pribadi; exit 0; fi
 if (( MIGRATE )); then server_migrate; exit 0; fi
 if (( SERVER && CHECK )); then have() { command -v "$1" >/dev/null 2>&1; }; server_check; exit $?; fi
