@@ -350,9 +350,51 @@ komputernya sendiri, tanpa tunnel SSH. Fitur ini aktif kalau `winbox_ports`
 diisi di config. Kalau kosong atau `0`, panel Winbox hanya menampilkan alamat
 internal yang terjangkau dari mesin server (lihat [Winbox](penggunaan.md#memakai-winbox)).
 
-```yaml
-winbox_ports: 28000
-```
+### Cara mengaktifkan
+
+1. Buka config:
+
+   ```bash
+   sudo nano /etc/p-lab/server.yaml
+   ```
+
+2. Cari baris `# winbox_ports: 28000` (di bawah `trusted_proxies`), lalu hapus tanda
+   `#` di depannya. Baris ini harus berada di **paling kiri**, sejajar dengan `mode:`
+   dan `listen:`, bukan menjorok di bawah `capacity:`:
+
+   ```yaml
+   winbox_ports: 28000
+   ```
+
+   Nilainya boleh diganti dengan angka lain dari 1024 sampai 63488, asalkan rentang
+   2048 port mulai dari angka itu (28000 sampai 30047 untuk contoh ini) tidak dipakai
+   program lain.
+
+3. Restart service, lalu pastikan service hidup lagi:
+
+   ```bash
+   sudo systemctl restart p-lab
+   systemctl status p-lab --no-pager
+   ```
+
+   Kalau nilainya salah (misalnya 80 atau `28000x`), service gagal start, dan
+   pesannya bisa dilihat dengan `sudo journalctl -u p-lab -n 20 --no-pager`.
+
+4. **Deploy ulang** lab RouterOS yang sedang berjalan. Port dipasang saat deploy,
+   jadi lab yang sudah jalan sebelum langkah 3 belum punya port Winbox.
+
+5. Cek hasilnya. Panel **Winbox** di halaman lab sekarang menampilkan alamat seperti
+   `192.168.1.10:28024`, bukan lagi `172.20.x.y:8291`. Dari terminal server:
+
+   ```bash
+   sudo docker ps --format '{{.Names}}  {{.Ports}}' | grep 8291
+   # clab-net002-budi-r1  0.0.0.0:28024->8291/tcp
+   ```
+
+Untuk mematikan fitur ini, beri `#` lagi di depan barisnya (atau isi `0`), lalu
+restart service dan deploy ulang lab.
+
+### Cara nomor port dihitung
 
 Port tiap router dihitung dengan rumus:
 
@@ -540,6 +582,7 @@ dihapus**, jadi kamu bisa migrasi lagi nanti tanpa kehilangan akun.
 | Login ditolak padahal password benar | Akun mungkin nonaktif: aktifkan lagi di dashboard admin, atau `sudo platform/p-lab-admin list`, lalu `activate <username>`. |
 | Muncul permintaan login lagi setelah lama | Sesi login 12 jam. Login ulang; lab yang berjalan tidak terpengaruh. |
 | Import CSV: baris gagal | Lihat nomor barisnya. Biasanya username berhuruf besar atau bertitik, atau password kurang dari 8 karakter. |
+| Log berisi `p-lab.service: Unable to locate executable '<folder lama>/platform/web'` berulang tiap 3 detik, padahal service system jalan | Itu service **user** `p-lab` sisa mode Pribadi (repo sudah dipindah). Matikan: `systemctl --user disable --now p-lab && systemctl --user reset-failed p-lab`. `./install.sh --server` terbaru melakukannya otomatis. |
 | Winbox tidak tersambung dari komputer lain | Pastikan `winbox_ports` diisi, lab di-deploy ulang setelah `winbox_ports` diubah, tidak ada aturan `DOCKER-USER` yang memblokir, dan alamat yang dipakai sama dengan yang ada di panel ([Winbox](#winbox-dari-komputer-siswa)). |
 
 ## Belum tersedia

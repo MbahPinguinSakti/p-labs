@@ -41,6 +41,16 @@ class Tmp(unittest.TestCase):
 
 
 class TestLoad(Tmp):
+    def test_broken_yaml_names_line(self):
+        # Kesalahan khas: `# winbox_ports` di-uncomment dengan menyisakan satu spasi.
+        p = self.write("mode: server\nlisten: 0.0.0.0:8000\n winbox_ports: 28000\n")
+        with self.assertRaises(ConfigError) as ctx:
+            config.load(p)
+        message = str(ctx.exception)
+        self.assertIn("baris 3", message)
+        self.assertIn("' winbox_ports: 28000'", message)
+        self.assertIn("indentasi", message)
+
     def test_default_without_file(self):
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("LAB_CONFIG", None)

@@ -176,6 +176,32 @@ def _positive_int(value, name, problems):
     return value
 
 
+def yaml_problem(exc, path):
+    """Pesan YAML rusak yang bisa ditindaklanjuti: nomor baris, isi baris itu, dan petunjuk.
+
+    str(exc) PyYAML berlapis-lapis ("while parsing a block mapping ... expected <block end>
+    ..."); baris pertamanya saja tidak menyebut baris mana yang salah.
+    """
+    mark = getattr(exc, "problem_mark", None)
+    problem = getattr(exc, "problem", None) or str(exc).splitlines()[0]
+    if mark is None:
+        return f"YAML rusak: {problem}"
+    lineno = mark.line + 1
+    text = ""
+    try:
+        lines = path.read_text().splitlines()
+        if 0 < lineno <= len(lines):
+            text = f"\n      baris {lineno}: {lines[lineno - 1]!r}"
+    except (OSError, UnicodeDecodeError):
+        pass
+    hint = ""
+    if "block" in problem or "indent" in problem or "mapping" in problem or "block" in str(getattr(exc, "context", "")):
+        hint = ("\n      Biasanya karena indentasi: kunci utama (mode, listen, winbox_ports, ...) harus di "
+                "paling kiri tanpa spasi; isi capacity menjorok 2 spasi. Saat menghapus `#`, hapus juga "
+                "spasi sesudahnya.")
+    return f"YAML rusak di baris {lineno}, kolom {mark.column + 1}: {problem}{text}{hint}"
+
+
 def _read(path, explicit):
     if not path.exists():
         if explicit:
@@ -186,7 +212,7 @@ def _read(path, explicit):
     except (OSError, UnicodeDecodeError) as exc:
         raise ConfigError([f"file config tidak bisa dibaca: {exc}"], path) from None
     except yaml.YAMLError as exc:
-        raise ConfigError([f"YAML rusak: {str(exc).splitlines()[0] if str(exc) else exc}"], path) from None
+        raise ConfigError([yaml_problem(exc, path)], path) from None
     if data is None:
         data = {}
     if not isinstance(data, dict):

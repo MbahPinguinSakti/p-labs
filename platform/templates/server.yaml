@@ -36,7 +36,11 @@ data_dir: /var/lib/p-lab
 # untuk mempublikasikan port Winbox tiap router RouterOS milik user di semua
 # alamat server: port = winbox_ports + indeks subnet user * 8 + urutan router
 # (maks. 8 router RouterOS per lab). Rentang yang dipakai 2048 port, mis. 28000
-# -> 28000-30047/tcp; buka rentang itu di firewall (sudo ufw allow 28000:30047/tcp).
+# -> 28000-30047/tcp. Port di-publish Docker dan melewati ufw/firewalld: tidak
+# perlu `ufw allow`, dan `ufw deny` tidak membatasinya (pakai chain DOCKER-USER,
+# lihat docs/server.md "Winbox dari komputer siswa").
+# Aktifkan: hapus `#` di baris bawah (tanpa spasi di depan), restart service
+# (sudo systemctl restart p-lab), lalu deploy ulang lab RouterOS yang berjalan.
 # Router tetap admin/admin: semua komputer di jaringan yang bisa menjangkau
 # server bisa mencoba port itu.
 # winbox_ports: 28000

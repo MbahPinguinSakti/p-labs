@@ -107,6 +107,9 @@ SERVER_CONF=${LAB_CONFIG:-/etc/p-lab/server.yaml}
 PY=$ROOT/.venv/bin/python
 mig() { "$PY" platform/migrate-server "$@"; }
 user_svc_active() { systemctl --user is-active -q p-lab 2>/dev/null; }
+# Unit user ada (aktif, gagal berulang, atau hanya ter-enable). is-active saja tidak cukup:
+# unit yang ExecStart-nya hilang (repo dipindah) berstatus "activating" terus-menerus.
+user_svc_present() { systemctl --user cat p-lab >/dev/null 2>&1; }
 
 path_traversable_by_others() {  # semua folder induk $1 punya bit o+x
   local d=$1
@@ -163,6 +166,12 @@ server_install() {
   sudo env LAB_CONFIG="$SERVER_CONF" "$ROOT/platform/install-service.sh" --system | sed 's/^/  /'
   # update kode (git pull + install.sh --server): service yang sudah jalan dimuat ulang
   systemctl is-active -q p-lab 2>/dev/null && sudo systemctl restart p-lab && ok "service p-lab dimuat ulang"
+  # Sisa mode Pribadi setelah peralihan (mis. migrate versi lama melewatkan unit yang gagal berulang).
+  if systemctl is-enabled -q p-lab 2>/dev/null && user_svc_present; then
+    systemctl --user disable --now p-lab 2>/dev/null
+    systemctl --user reset-failed p-lab 2>/dev/null
+    ok "service user p-lab sisa mode Pribadi dihentikan dan di-disable"
+  fi
   step "Selesai (belum dinyalakan, belum di-enable)"
   echo "  Langkah berikutnya, dilakukan admin:"
   echo "   1. Isi $SERVER_CONF (alamat, data_dir, style, capacity, allowed_hosts; ada penjelasan di dalamnya)"
@@ -188,8 +197,10 @@ server_migrate() {
     --owner plab "${flags[@]}" || die "peralihan dibatalkan; tidak ada service yang diubah"
   step "Mengganti service"
   sudo env LAB_CONFIG="$SERVER_CONF" "$ROOT/platform/install-service.sh" --system | sed 's/^/  /'   # alamat dari config final
-  if user_svc_active; then
-    systemctl --user disable --now p-lab && ok "service user p-lab dihentikan (port dilepas)"
+  if user_svc_present; then
+    systemctl --user disable --now p-lab 2>/dev/null
+    systemctl --user reset-failed p-lab 2>/dev/null
+    ok "service user p-lab (mode Pribadi) dihentikan dan di-disable"
   fi
   sudo systemctl enable --now p-lab
   sleep 2
