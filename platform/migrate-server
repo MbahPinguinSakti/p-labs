@@ -107,19 +107,21 @@ def check_containerlab(path=None):
     return FAIL, "containerlab belum sudo-less: sudo platform/setup-sudoless.sh plab"
 
 
-def check_port(host, port, own_service_active=False):
+def check_port(host, port, own_service_active=False, server_running=False):
     with closing(socket.socket(socket.AF_INET6 if ":" in host else socket.AF_INET)) as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             s.bind((host, port))
         except OSError as exc:
+            if server_running:
+                return OK, f"port {port} dipakai service p-lab mode Server yang sedang berjalan"
             if own_service_active:
                 return WARN, f"port {port} dipakai service p-lab yang sekarang; install.sh menghentikannya saat peralihan"
             return FAIL, f"port {host}:{port} tidak bisa dipakai ({exc.strerror}): ganti listen atau hentikan prosesnya"
     return OK, f"port {host}:{port} bebas"
 
 
-def check_winbox_ports(base):
+def check_winbox_ports(base, server_running=False):
     """winbox_ports aktif: port pertama dan terakhir rentang tidak boleh sedang dipakai (sampel)."""
     if not base:
         return OK, "winbox_ports nonaktif"
@@ -133,9 +135,11 @@ def check_winbox_ports(base):
             except OSError:
                 busy.append(port)
     if busy:
-        return WARN, (f"port Winbox {', '.join(map(str, busy))} sedang dipakai proses lain "
-                      f"(rentang {base}-{last}): ganti winbox_ports atau hentikan prosesnya")
-    return OK, f"rentang port Winbox {base}-{last} (sampel ujung) bebas; buka di firewall"
+        mine = " (bisa jadi lab siswa yang sedang berjalan)" if server_running else ""
+        return WARN, (f"port Winbox {', '.join(map(str, busy))} sedang dipakai{mine} "
+                      f"(rentang {base}-{last}): kalau bukan milik P-lab, ganti winbox_ports atau hentikan prosesnya")
+    # Port di-publish Docker dan melewati ufw/firewalld: tidak perlu dibuka di firewall.
+    return OK, f"rentang port Winbox {base}-{last} (sampel ujung) bebas"
 
 
 def lab_clab_names(repo=ROOT):
@@ -167,10 +171,13 @@ def docker_container_names():
     return out.stdout.split() if out.returncode == 0 else None
 
 
-def check_containers(names, clab_names):
+def check_containers(names, clab_names, server_running=False):
     if names is None:
         return WARN, "docker tidak bisa diakses: container lab yang sedang jalan tidak terdeteksi"
     busy = running_lab_containers(names, clab_names)
+    if busy and server_running:
+        # Sudah mode Server: yang jalan adalah lab siswa, bukan sisa lab Pribadi.
+        return OK, f"{len(busy)} container lab siswa sedang berjalan (normal saat mode Server aktif)"
     if busy:
         return FAIL, (f"{len(busy)} container lab masih jalan ({', '.join(busy[:3])}{'...' if len(busy) > 3 else ''}): "
                       "hancurkan dulu dengan ./reset.sh atau containerlab destroy")
@@ -210,16 +217,32 @@ def check_admin(cfg, admin_name):
 
 
 def user_service_active():
+    # Sebagai root (migrate lewat sudo) tidak ada session bus user: systemctl --user hanya
+    # mencetak "Failed to connect to user scope bus". install.sh sudah mengirim
+    # --own-service-active dari sisi user, jadi di sini cukup False tanpa pesan.
+    if os.geteuid() == 0:
+        return False
     try:
         return subprocess.run(["systemctl", "--user", "is-active", "-q", "p-lab"],
-                              timeout=10).returncode == 0
+                              stderr=subprocess.DEVNULL, timeout=10).returncode == 0
     except (OSError, subprocess.TimeoutExpired):
         return False
 
 
-def run_checks(cfg, admin_name="admin", repo=ROOT, own_service_active=None, container_names="auto"):
+def system_service_active():
+    """Service system p-lab (mode Server) sudah jalan: --check diulang setelah migrasi."""
+    try:
+        return subprocess.run(["systemctl", "is-active", "-q", "p-lab"], timeout=10).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def run_checks(cfg, admin_name="admin", repo=ROOT, own_service_active=None, container_names="auto",
+               server_running=None):
     if own_service_active is None:
         own_service_active = user_service_active()
+    if server_running is None:
+        server_running = system_service_active()
     if container_names == "auto":
         container_names = docker_container_names()
     results = []
@@ -230,9 +253,9 @@ def run_checks(cfg, admin_name="admin", repo=ROOT, own_service_active=None, cont
     results.append(check_memory(cfg, mem_total_mb()))
     results.append(check_kvm(routeros_labs(repo)))
     results.append(check_containerlab())
-    results.append(check_port(cfg.host, cfg.port, own_service_active))
-    results.append(check_winbox_ports(cfg.winbox_ports))
-    results.append(check_containers(container_names, lab_clab_names(repo)))
+    results.append(check_port(cfg.host, cfg.port, own_service_active, server_running))
+    results.append(check_winbox_ports(cfg.winbox_ports, server_running))
+    results.append(check_containers(container_names, lab_clab_names(repo), server_running))
     results.append(check_admin(cfg, admin_name))
     return results
 

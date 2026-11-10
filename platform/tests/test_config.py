@@ -295,9 +295,21 @@ class TestMigrate(Tmp):
             self.assertEqual(self.m.check_port("127.0.0.1", port, own_service_active=True)[0], "warn")
         self.assertEqual(self.m.check_port("127.0.0.1", port)[0], "ok")
 
+    def test_after_migrate_own_server_is_not_a_failure(self):
+        # --check diulang setelah migrasi: port dan lab siswa milik service system p-lab sendiri.
+        import socket
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            s.listen()
+            port = s.getsockname()[1]
+            self.assertEqual(self.m.check_port("127.0.0.1", port, server_running=True)[0], "ok")
+        names = ["clab-net002-budi-r1"]
+        self.assertEqual(self.m.check_containers(names, {"net002"})[0], "fail")
+        self.assertEqual(self.m.check_containers(names, {"net002"}, server_running=True)[0], "ok")
+
     def test_run_checks_pribadi_config_fails(self):
         cfg = config.from_dict({})
-        res = self.m.run_checks(cfg, repo=self.repo, own_service_active=False, container_names=[])
+        res = self.m.run_checks(cfg, repo=self.repo, own_service_active=False, container_names=[], server_running=False)
         self.assertEqual(res[0][0], "fail")
 
     def test_check_winbox_ports(self):
@@ -309,7 +321,7 @@ class TestMigrate(Tmp):
             busy = s.getsockname()[1]
             self.assertEqual(self.m.check_winbox_ports(busy)[0], "warn")
         res = self.m.run_checks(config.from_dict({"mode": "server", "data_dir": "/x"}), repo=self.repo,
-                                own_service_active=False, container_names=[])
+                                own_service_active=False, container_names=[], server_running=False)
         self.assertTrue(any("winbox" in msg.lower() for _, msg in res))
 
     def test_confirmation(self):
