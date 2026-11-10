@@ -208,6 +208,20 @@ class TestMigrateIzin(Tmp):
         self.assertEqual(level, self.m.WARN)
         self.assertIn("sudo", text)
 
+    def test_data_dir_tidak_bisa_dilewati_jadi_warn(self):
+        # Kasus VM: /var/lib/p-lab mode 750 milik plab, --check dijalankan admin biasa.
+        data = self.dir / "data"
+        data.mkdir()
+        (data / "p-lab.db").write_text("")
+        data.chmod(0o600)   # tanpa bit x: stat isi folder gagal EACCES
+        self.addCleanup(data.chmod, 0o700)
+        if os.access(data / "p-lab.db", os.F_OK):
+            self.skipTest("root bisa melewati semua folder")
+        cfg = config.from_dict({"mode": "server", "data_dir": str(data)})
+        level, text = self.m.check_admin(cfg, "admin")
+        self.assertEqual(level, self.m.WARN)
+        self.assertIn("sudo", text)
+
     def test_containerlab_setuid_harus_milik_root(self):
         clab = self.dir / "containerlab"
         clab.write_text("")

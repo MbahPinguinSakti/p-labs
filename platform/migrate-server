@@ -180,8 +180,15 @@ def check_containers(names, clab_names):
 def admin_usernames_ro(db_path):
     """Admin aktif di DB tanpa membuat file/DB (AccountStore membuatnya).
     None = DB ada tapi tidak bisa dibaca user ini (mis. 0600 milik plab)."""
-    if not Path(db_path).exists():
+    # os.stat, bukan Path.exists(): data_dir mode 750 milik plab membuat stat gagal EACCES
+    # bagi admin biasa. Path.exists() melempar PermissionError di Python <= 3.13, dan
+    # menjawab False ("belum ada admin", keliru) di 3.14. Keduanya harus jadi "tidak bisa dibaca".
+    try:
+        os.stat(db_path)
+    except FileNotFoundError:
         return []
+    except OSError:
+        return None
     if not os.access(db_path, os.R_OK):
         return None
     try:
@@ -397,7 +404,9 @@ def main(argv=None):
         print(f"Akun: {exc}", file=sys.stderr)
         return 2
     except PermissionError as exc:
-        print(f"Izin ditolak: {exc}. Jalankan lewat ./install.sh --server --migrate (memakai sudo).", file=sys.stderr)
+        hint = (f"Cek sebagai root: sudo LAB_CONFIG={cfgmod.config_path()} .venv/bin/python platform/migrate-server check"
+                if args.command == "check" else "Jalankan lewat ./install.sh --server --migrate (memakai sudo).")
+        print(f"Izin ditolak: {exc}. {hint}", file=sys.stderr)
         return 1
 
 
